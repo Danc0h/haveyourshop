@@ -1,4 +1,5 @@
 const db = require('../db');
+const jobTracker = require('./jobTracker');
 const { computeScholarshipRelevance } = require('./gemini');
 
 /**
@@ -18,7 +19,8 @@ async function scrapeScholarships() {
       deadline: '2027-01-15',
       application_url: 'https://emse-erasmusmundus.eu/apply',
       description: 'Erasmus Mundus Joint Master Degree in Software Engineering focusing on software architectures, systems design, cloud architectures, and data engineering. Includes fully funded tuition, insurance, and monthly living stipends.',
-      eligibility_criteria: 'B.Sc. in CS/Software Engineering or related computing degree. Strong academic background and proficiency in English required.'
+      eligibility_criteria: 'B.Sc. in CS/Software Engineering or related computing degree. Strong academic background and proficiency in English required.',
+      how_to_apply: 'Submit academic transcripts, curriculum vitae (CV), and recommendation letters via the official EMSE application portal.'
     },
     {
       program_name: 'CS Research Lab Graduate Assistantship (Dr. Sarah Jenkins - Distributed Systems & Green Computing)',
@@ -28,7 +30,8 @@ async function scrapeScholarships() {
       deadline: '2026-12-01',
       application_url: 'https://cs.ubc.ca/labs/distributed-systems/advisor-openings',
       description: 'Graduate Research Assistantship opening in Distributed Systems & Green Computing. Seeking students with background in system architectures, carbon asset accounting, or backend databases to write cloud data pipelines.',
-      eligibility_criteria: 'M.Sc./B.Sc. in Software Engineering or CS, experience with PostgreSQL, cloud platforms, or systems programming is highly preferred.'
+      eligibility_criteria: 'M.Sc./B.Sc. in Software Engineering or CS, experience with PostgreSQL, cloud platforms, or systems programming is highly preferred.',
+      how_to_apply: 'Email Dr. Sarah Jenkins directly with your CV, academic transcript, and a cover letter referencing your systems architecture experience at TerraQuant.'
     },
     {
       program_name: 'DAAD EPOS Scholarship for MSc in Development-Related Computer Science',
@@ -38,7 +41,8 @@ async function scrapeScholarships() {
       deadline: '2026-10-31',
       application_url: 'https://www.daad.de/en/study-and-research-in-germany/scholarships',
       description: 'Postgraduate scholarship for computing professionals from developing nations focusing on software engineering for sustainable development, e-commerce networks, and digitalization of SME business infrastructure.',
-      eligibility_criteria: 'B.Sc. in Computer Science/Software Engineering, minimum 2 years of professional software development experience, proof of English/German.'
+      eligibility_criteria: 'B.Sc. in Computer Science/Software Engineering, minimum 2 years of professional software development experience, proof of English/German.',
+      how_to_apply: 'Apply through the DAAD scholarship portal using the EPOS forms, submitting proof of two years of software development experience.'
     },
     {
       program_name: 'Chevening Postgraduate Scholarship - MSc in Advanced Computing / Software Engineering',
@@ -48,7 +52,8 @@ async function scrapeScholarships() {
       deadline: '2026-11-05',
       application_url: 'https://www.chevening.org/apply',
       description: 'UK government global scholarship program. Covers full tuition, monthly stipends, and travel allowance to pursue a Master’s degree in advanced computing architectures, e-commerce, or mobile systems.',
-      eligibility_criteria: 'Undergraduate degree, minimum 2 years of work experience, leadership potential, plan to return to home country to implement digital systems.'
+      eligibility_criteria: 'Undergraduate degree, minimum 2 years of work experience, leadership potential, plan to return to home country to implement digital systems.',
+      how_to_apply: 'Submit your fellowship request via the Chevening application portal for Kenya, highlighting leadership and community contribution.'
     },
     {
       program_name: 'Research Assistantship in Secure Smart Contracts & Blockchain systems',
@@ -58,13 +63,18 @@ async function scrapeScholarships() {
       deadline: '2026-11-15',
       application_url: 'https://uwaterloo.ca/cryptology-security/advisor-openings',
       description: 'Advisor-funded Graduate Research Assistantship. Researching scalable distributed systems and secure transaction ledgers (carbon credits / e-commerce security). Looking for candidates with strong Python/Node.js experience.',
-      eligibility_criteria: 'B.Sc. in Software Engineering or CS, proficiency in Python or JavaScript backend development, understanding of cryptography.'
+      eligibility_criteria: 'B.Sc. in Software Engineering or CS, proficiency in Python or JavaScript backend development, understanding of cryptography.',
+      how_to_apply: 'Submit your GRA request directly to the lab director including link to dancunsoftwares.online and git repo.'
     }
   ];
 
   let addedOpportunities = 0;
 
   for (const opp of seedOpportunities) {
+    if (!jobTracker.isJobActive('scholarship_scraper')) {
+      console.log('⚠️ [Scholarship Scraper] Pipeline terminated by user request.');
+      break;
+    }
     // 1. Calculate relevance matching score using Gemini
     const score = await computeScholarshipRelevance(opp.program_name, opp.description);
 
@@ -72,11 +82,12 @@ async function scrapeScholarships() {
     try {
       const queryText = `
         INSERT INTO scholarship_listings (
-          program_name, institution, location, funding_type, deadline, application_url, description, eligibility_criteria, relevance_score, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          program_name, institution, location, funding_type, deadline, application_url, description, eligibility_criteria, relevance_score, status, how_to_apply
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (application_url) DO UPDATE SET
           relevance_score = EXCLUDED.relevance_score,
-          deadline = EXCLUDED.deadline
+          deadline = EXCLUDED.deadline,
+          how_to_apply = EXCLUDED.how_to_apply
         RETURNING id;
       `;
       
@@ -90,7 +101,8 @@ async function scrapeScholarships() {
         opp.description,
         opp.eligibility_criteria,
         score,
-        'Discovered'
+        'Discovered',
+        opp.how_to_apply
       ];
 
       const result = await db.query(queryText, params);
@@ -103,6 +115,23 @@ async function scrapeScholarships() {
   }
 
   console.log(`✅ Scholarship Scraper: Ingested ${addedOpportunities} CS graduate funding opportunities.`);
+
+  // Write to DB logs
+  try {
+    const tasksExecuted = [{
+      name: 'Scan Graduate Funding Portals',
+      status: 'Success',
+      details: `Discovered and ingested/updated ${addedOpportunities} graduate scholarship opportunities.`
+    }];
+    const logOutput = `[${new Date().toISOString()}] 🚀 Starting Scholarship Scraper Pipeline...\nIngested ${addedOpportunities} funding opportunities.`;
+    await db.query(`
+      INSERT INTO cron_runs (run_time, pipeline_type, status, tasks_executed, log_output)
+      VALUES (CURRENT_TIMESTAMP, 'scholarship_scraper', 'Success', $1, $2)
+    `, [JSON.stringify(tasksExecuted), logOutput]);
+  } catch (dbErr) {
+    console.error('Failed to log scholarship_scraper cron_run to DB:', dbErr.message);
+  }
+
   return { success: true, ingested: addedOpportunities };
 }
 

@@ -500,6 +500,22 @@ function App() {
     }
   };
 
+  const handleStopJob = async (type) => {
+    try {
+      const res = await fetch(`${API_URL}/automation/stop/${type}`, { method: 'POST' });
+      if (res.ok) {
+        if (type === 'job_scraper') setScrapingJobs(false);
+        if (type === 'client_outreach') setCrawlingLeads(false);
+        if (type === 'scholarship_scraper') setScrapingScholarships(false);
+        alert(`Stop signal sent to ${type}. The pipeline will abort shortly.`);
+        fetchCrmData();
+        fetchCronRuns();
+      }
+    } catch (e) {
+      console.error('Failed to send stop signal:', e.message);
+    }
+  };
+
   const handleCreateLead = async (e) => {
     e.preventDefault();
     try {
@@ -1046,31 +1062,66 @@ function App() {
                 </span>
                 <h1 style={{ fontSize: '2.2rem' }}>Acquisition CRM Dashboard</h1>
               </div>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <button 
-                  onClick={handleTriggerScraper} 
-                  disabled={scrapingJobs} 
-                  className="btn btn-secondary" 
-                  style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                >
-                  <RefreshCw size={14} className={scrapingJobs ? 'animate-spin' : ''} /> {scrapingJobs ? 'Scraping Jobs...' : 'Scrape Jobs'}
-                </button>
-                <button 
-                  onClick={handleTriggerCrawl} 
-                  disabled={crawlingLeads} 
-                  className="btn btn-primary" 
-                  style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                >
-                  <Cpu size={14} className={crawlingLeads ? 'animate-pulse' : ''} /> {crawlingLeads ? 'Scanning Local Leads...' : 'Scan Leads'}
-                </button>
-                <button 
-                  onClick={handleTriggerScholarshipScraper} 
-                  disabled={scrapingScholarships} 
-                  className="btn btn-secondary" 
-                  style={{ padding: '8px 16px', fontSize: '0.85rem', border: '1px solid var(--secondary)' }}
-                >
-                  <RefreshCw size={14} className={scrapingScholarships ? 'animate-spin' : ''} /> {scrapingScholarships ? 'Scanning Funding...' : 'Scrape Scholarships'}
-                </button>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <button 
+                    onClick={handleTriggerScraper} 
+                    disabled={scrapingJobs} 
+                    className="btn btn-secondary" 
+                    style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                  >
+                    <RefreshCw size={14} className={scrapingJobs ? 'animate-spin' : ''} /> {scrapingJobs ? 'Scraping Jobs...' : 'Scrape Jobs'}
+                  </button>
+                  {scrapingJobs && (
+                    <button 
+                      onClick={() => handleStopJob('job_scraper')} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 12px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <button 
+                    onClick={handleTriggerCrawl} 
+                    disabled={crawlingLeads} 
+                    className="btn btn-primary" 
+                    style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                  >
+                    <Cpu size={14} className={crawlingLeads ? 'animate-pulse' : ''} /> {crawlingLeads ? 'Scanning Local Leads...' : 'Scan Leads'}
+                  </button>
+                  {crawlingLeads && (
+                    <button 
+                      onClick={() => handleStopJob('client_outreach')} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 12px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <button 
+                    onClick={handleTriggerScholarshipScraper} 
+                    disabled={scrapingScholarships} 
+                    className="btn btn-secondary" 
+                    style={{ padding: '8px 16px', fontSize: '0.85rem', border: '1px solid var(--secondary)' }}
+                  >
+                    <RefreshCw size={14} className={scrapingScholarships ? 'animate-spin' : ''} /> {scrapingScholarships ? 'Scanning Funding...' : 'Scrape Scholarships'}
+                  </button>
+                  {scrapingScholarships && (
+                    <button 
+                      onClick={() => handleStopJob('scholarship_scraper')} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 12px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1187,6 +1238,7 @@ function App() {
                           <p style={{ fontSize: '0.9rem', margin: '4px 0 0 0' }}>
                             🌐 {lead.website_url ? <a href={`http://${lead.website_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>{lead.website_url} <ExternalLink size={10} /></a> : <span style={{ color: 'var(--accent)' }}>No website found</span>}
                             {lead.email && <span style={{ marginLeft: '16px' }}>✉️ {lead.email}</span>}
+                            {lead.social_media_url && <span style={{ marginLeft: '16px' }}>📱 <a href={lead.social_media_url.startsWith('http') ? lead.social_media_url : `https://${lead.social_media_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Social Media <ExternalLink size={10} /></a></span>}
                           </p>
                           <div style={{ marginTop: '8px', display: 'flex', gap: '8px', fontSize: '0.8rem' }}>
                             <span style={{ color: lead.digital_audit?.no_ssl ? 'var(--accent)' : 'var(--text-secondary)' }}>🔒 SSL: {lead.digital_audit?.no_ssl ? 'Missing' : 'Active'}</span>
@@ -1314,11 +1366,16 @@ function App() {
                             <span className="badge" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{job.company_name}</span>
                           </div>
                           <p style={{ fontSize: '0.85rem', margin: '4px 0 8px 0', color: 'var(--text-secondary)' }}>
-                            📍 {job.location} | 💰 {job.salary}
+                            📍 {job.location} | 💰 {job.salary} | 📅 Found: {new Date(job.created_at).toLocaleDateString()} | 🌐 <a href={job.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Job <ExternalLink size={10} /></a>
                           </p>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', marginBottom: '8px' }}>
                             {job.job_description?.replace(/<[^>]*>/g, '')}
                           </p>
+                          {job.how_to_apply && (
+                            <p style={{ fontSize: '0.8rem', color: 'var(--primary)', margin: '4px 0 0 0' }}>
+                              📝 <strong>How to Apply:</strong> {job.how_to_apply}
+                            </p>
+                          )}
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', justifyContent: 'flex-end' }}>
@@ -1428,14 +1485,19 @@ function App() {
                             <span className="badge" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{sch.institution}</span>
                           </div>
                           <p style={{ fontSize: '0.85rem', margin: '4px 0 8px 0', color: 'var(--text-secondary)' }}>
-                            📍 {sch.location} | 🎓 {sch.funding_type} | 📅 Deadline: {sch.deadline ? new Date(sch.deadline).toLocaleDateString() : 'Rolling'}
+                            📍 {sch.location} | 🎓 {sch.funding_type} | 📅 Deadline: {sch.deadline ? new Date(sch.deadline).toLocaleDateString() : 'Rolling'} | 🌐 <a href={sch.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Portal <ExternalLink size={10} /></a>
                           </p>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
                             {sch.description}
                           </p>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0' }}>
                             📋 <strong>Eligibility:</strong> {sch.eligibility_criteria}
                           </p>
+                          {sch.how_to_apply && (
+                            <p style={{ fontSize: '0.8rem', color: 'var(--accent)', margin: '4px 0 0 0' }}>
+                              📝 <strong>How to Apply:</strong> {sch.how_to_apply}
+                            </p>
+                          )}
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', justifyContent: 'flex-end' }}>
@@ -1634,7 +1696,7 @@ function App() {
                         <div className="flex-between" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                           <div>
                             <span style={{ fontWeight: '700', fontSize: '1.1rem', marginRight: '12px' }}>
-                              {run.pipeline_type === 'job_scraper' ? '💼 Job Scraper Pipeline' : '✉️ Client Outreach Pipeline'}
+                              {run.pipeline_type === 'job_scraper' ? '💼 Job Scraper Pipeline' : run.pipeline_type === 'client_outreach' ? '✉️ Client Outreach Pipeline' : '🎓 Scholarship Scraper Pipeline'}
                             </span>
                             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                               Ran on: {new Date(run.run_time).toLocaleString()}

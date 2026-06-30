@@ -248,6 +248,7 @@ async function queryMock(text, params = []) {
       lead_score: params[6] || 0,
       digital_audit: typeof params[7] === 'string' ? JSON.parse(params[7]) : params[7] || {},
       status: params[8] || 'New',
+      social_media_url: params[9] || null,
       created_at: new Date().toISOString()
     };
     mockDb.client_leads.push(newLead);
@@ -280,6 +281,7 @@ async function queryMock(text, params = []) {
       status: params[7] || 'Discovered',
       cv_generated_path: '',
       cover_letter_text: '',
+      how_to_apply: params[8] || 'Submit your CV and cover letter via the application link.',
       created_at: new Date().toISOString()
     };
     // Avoid duplicates
@@ -363,6 +365,7 @@ async function queryMock(text, params = []) {
       relevance_score: params[8] || 0,
       status: params[9] || 'Discovered',
       sop_text: '',
+      how_to_apply: params[10] || 'Apply via the university admissions portal.',
       created_at: new Date().toISOString()
     };
     if (!mockDb.scholarship_listings.some(s => s.application_url === newSch.application_url)) {

@@ -376,11 +376,23 @@ app.post('/api/crm/scholarships/:id/generate', async (req, res) => {
 // 4. AUTOMATION MANUAL TRIGGERS
 // ----------------------------------------------------
 
+const jobTracker = require('./services/jobTracker');
+
+/**
+ * Stop signal endpoints.
+ */
+app.post('/api/automation/stop/:type', (req, res) => {
+  const { type } = req.params;
+  jobTracker.stopJob(type);
+  res.json({ success: true, message: `Cancellation signal sent to ${type}.` });
+});
+
 /**
  * Trigger remote job scraper pipeline immediately.
  */
 app.post('/api/automation/scrape-jobs', async (req, res) => {
   try {
+    jobTracker.startJob('job_scraper');
     const result = await runJobScraperPipeline();
     res.json(result);
   } catch (err) {
@@ -393,6 +405,7 @@ app.post('/api/automation/scrape-jobs', async (req, res) => {
  */
 app.post('/api/automation/crawl-leads', async (req, res) => {
   try {
+    jobTracker.startJob('client_outreach');
     const result = await runClientOutreachPipeline();
     res.json(result);
   } catch (err) {
@@ -405,10 +418,9 @@ app.post('/api/automation/crawl-leads', async (req, res) => {
  */
 app.post('/api/automation/scrape-scholarships', async (req, res) => {
   try {
+    jobTracker.startJob('scholarship_scraper');
     const result = await scrapeScholarships();
     res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 

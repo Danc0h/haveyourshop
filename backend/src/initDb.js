@@ -2,31 +2,20 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const schemaSql = `
--- Enums for CRM tracking
+-- Enums creation (if they don't exist)
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lead_status') THEN
-    CREATE TYPE lead_status AS ENUM (
-      'New', 'Contacted', 'Replied', 'Meeting Scheduled', 'Proposal Sent', 'Won', 'Lost'
-    );
+    CREATE TYPE lead_status AS ENUM ('New', 'Contacted', 'Replied', 'Meeting Scheduled', 'Proposal Sent', 'Won', 'Lost');
   END IF;
-  
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'job_status') THEN
-    CREATE TYPE job_status AS ENUM (
-      'Discovered', 'Applied', 'Interview', 'Rejected', 'Offer'
-    );
-  END IF;
-
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'outreach_channel') THEN
-    CREATE TYPE outreach_channel AS ENUM (
-      'Email', 'LinkedIn', 'WhatsApp', 'Contact Form'
-    );
+    CREATE TYPE outreach_channel AS ENUM ('Email', 'LinkedIn', 'WhatsApp', 'Contact Form');
   END IF;
-
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'job_status') THEN
+    CREATE TYPE job_status AS ENUM ('Discovered', 'Applied', 'Interview', 'Rejected', 'Offer');
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'scholarship_status') THEN
-    CREATE TYPE scholarship_status AS ENUM (
-      'Discovered', 'SOP Drafted', 'Applied', 'Interview', 'Accepted', 'Rejected'
-    );
+    CREATE TYPE scholarship_status AS ENUM ('Discovered', 'SOP Drafted', 'Applied', 'Interview', 'Accepted', 'Rejected');
   END IF;
 END$$;
 
@@ -42,6 +31,7 @@ CREATE TABLE IF NOT EXISTS client_leads (
   lead_score INTEGER DEFAULT 0,
   digital_audit JSONB,
   status lead_status DEFAULT 'New',
+  social_media_url VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -71,6 +61,7 @@ CREATE TABLE IF NOT EXISTS job_listings (
   status job_status DEFAULT 'Discovered',
   cv_generated_path TEXT,
   cover_letter_text TEXT,
+  how_to_apply TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -89,34 +80,18 @@ CREATE TABLE IF NOT EXISTS scholarship_listings (
   relevance_score INTEGER DEFAULT 0,
   status scholarship_status DEFAULT 'Discovered',
   sop_text TEXT,
+  how_to_apply TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Blog & Case Studies (For Website CMS)
-CREATE TABLE IF NOT EXISTS blog_posts (
+-- 5. Business CRM Performance Metrics
+CREATE TABLE IF NOT EXISTS crm_metrics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(255) NOT NULL,
-  slug VARCHAR(255) NOT NULL UNIQUE,
-  content TEXT NOT NULL,
-  summary TEXT,
-  is_case_study BOOLEAN DEFAULT FALSE,
-  tags VARCHAR(50)[],
-  published_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 5. System Analytics (For Reporting)
-CREATE TABLE IF NOT EXISTS daily_metrics (
-  date DATE PRIMARY KEY,
-  leads_found INTEGER DEFAULT 0,
-  outreach_sent INTEGER DEFAULT 0,
-  replies_received INTEGER DEFAULT 0,
-  meetings_booked INTEGER DEFAULT 0,
-  deals_won INTEGER DEFAULT 0,
-  jobs_found INTEGER DEFAULT 0,
-  applications_submitted INTEGER DEFAULT 0,
-  interviews_obtained INTEGER DEFAULT 0,
+  log_date DATE UNIQUE DEFAULT CURRENT_DATE,
+  leads_contacted INTEGER DEFAULT 0,
+  leads_won INTEGER DEFAULT 0,
+  interviews_scheduled INTEGER DEFAULT 0,
   offers_received INTEGER DEFAULT 0,
   revenue_generated DECIMAL(10,2) DEFAULT 0.00
 );
@@ -131,6 +106,11 @@ CREATE TABLE IF NOT EXISTS cron_runs (
   log_output TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migrations/Alter statements for existing schemas
+ALTER TABLE client_leads ADD COLUMN IF NOT EXISTS social_media_url VARCHAR(255);
+ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
+ALTER TABLE scholarship_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
 `;
 
 async function initDb() {
@@ -159,4 +139,6 @@ if (require.main === module) {
   initDb();
 }
 
-module.exports = initDb;
+module.exports = {
+  initDb
+};
