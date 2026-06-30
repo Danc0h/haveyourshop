@@ -389,6 +389,16 @@ async function queryMock(text, params = []) {
     }
   }
 
+  // 12. TRUNCATE tables (Clear database)
+  if (cleanText.includes('truncate')) {
+    mockDb.client_leads = [];
+    mockDb.job_listings = [];
+    mockDb.scholarship_listings = [];
+    mockDb.outreach_history = [];
+    mockDb.cron_runs = [];
+    return { rows: [] };
+  }
+
   // Return default response
   return { rows: [] };
 }

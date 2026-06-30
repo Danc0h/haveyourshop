@@ -458,6 +458,18 @@ app.get('/api/crm/metrics', async (req, res) => {
   }
 });
 
+/**
+ * Clear the database (Purge all tables).
+ */
+app.post('/api/crm/clear-database', async (req, res) => {
+  try {
+    await db.query('TRUNCATE TABLE client_leads, job_listings, scholarship_listings, outreach_history, cron_runs RESTART IDENTITY CASCADE');
+    res.json({ success: true, message: 'Database cleared successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`🚀 [Server] Express API server running on port ${PORT}`);

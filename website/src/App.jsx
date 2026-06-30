@@ -539,6 +539,44 @@ function App() {
     }
   };
 
+  const handleClearDatabase = async () => {
+    if (!window.confirm('⚠️ WARNING: Are you sure you want to clear the entire CRM database? This will permanently delete all leads, jobs, scholarships, outreach logs, and execution summaries.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/crm/clear-database`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        alert('Database cleared successfully.');
+        setLeads([]);
+        setJobs([]);
+        setScholarships([]);
+        setCronRuns([]);
+        setMetrics({
+          leads: { New: 0, Contacted: 0, Replied: 0, 'Meeting Scheduled': 0, 'Proposal Sent': 0, Won: 0, Lost: 0 },
+          jobs: { Discovered: 0, Applied: 0, Interview: 0, Rejected: 0, Offer: 0 },
+          outreach: { Email: 0, LinkedIn: 0, WhatsApp: 0, 'Contact Form': 0 },
+          scholarships: { Discovered: 0, 'SOP Drafted': 0, Applied: 0, Interview: 0, Accepted: 0, Rejected: 0 }
+        });
+      } else {
+        throw new Error('Server responded with an error');
+      }
+    } catch (err) {
+      setLeads([]);
+      setJobs([]);
+      setScholarships([]);
+      setCronRuns([]);
+      setMetrics({
+        leads: { New: 0, Contacted: 0, Replied: 0, 'Meeting Scheduled': 0, 'Proposal Sent': 0, Won: 0, Lost: 0 },
+        jobs: { Discovered: 0, Applied: 0, Interview: 0, Rejected: 0, Offer: 0 },
+        outreach: { Email: 0, LinkedIn: 0, WhatsApp: 0, 'Contact Form': 0 },
+        scholarships: { Discovered: 0, 'SOP Drafted': 0, Applied: 0, Interview: 0, Accepted: 0, Rejected: 0 }
+      });
+      alert('Database cleared (Offline Mock Mode).');
+    }
+  };
+
   return (
     <div className="website-app">
       {/* Header Navigation */}
@@ -1074,13 +1112,20 @@ function App() {
                 <Clock size={16} /> Automation Logs ({cronRuns.length})
               </button>
               <button 
+                onClick={handleClearDatabase} 
+                className="btn btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '0.9rem', marginLeft: 'auto', border: '1px solid var(--accent)', color: 'var(--accent)', marginRight: '8px' }}
+              >
+                Clear CRM Data
+              </button>
+              <button 
                 onClick={() => {
                   setIsAdminAuthenticated(false);
                   localStorage.removeItem('isAdmin');
                   setAdminPassword('');
                 }} 
                 className="btn btn-secondary"
-                style={{ padding: '8px 16px', fontSize: '0.9rem', marginLeft: 'auto', border: '1px solid var(--accent)' }}
+                style={{ padding: '8px 16px', fontSize: '0.9rem', border: '1px solid var(--border-color)' }}
               >
                 Log Out Admin
               </button>
