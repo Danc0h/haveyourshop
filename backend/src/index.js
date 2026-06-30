@@ -413,14 +413,13 @@ app.post('/api/automation/crawl-leads', async (req, res) => {
   }
 });
 
-/**
- * Trigger scholarship and advisor listing scrape immediately.
- */
 app.post('/api/automation/scrape-scholarships', async (req, res) => {
   try {
     jobTracker.startJob('scholarship_scraper');
     const result = await scrapeScholarships();
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
