@@ -727,17 +727,17 @@ function App() {
 
                 <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', border: '1px solid rgba(6, 182, 212, 0.15)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <span className="badge" style={{ margin: 0, background: 'rgba(6, 182, 212, 0.1)', color: 'var(--secondary)' }}>SME Listings</span>
+                    <span className="badge" style={{ margin: 0, background: 'rgba(6, 182, 212, 0.1)', color: 'var(--secondary)' }}>Enterprise POS</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏱️ 7 Days Launch</span>
                   </div>
-                  <h3>Directory & Realty Finder</h3>
+                  <h3>Enterprise Cloud POS System</h3>
                   <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                    A robust real estate, restaurant, or business directory listing index with mapping coordinates geolocation, catalog uploads, and responsive lead contact filters.
+                    A cloud-based Point of Sale (POS) system with offline-first synchronization, real-time inventory management, barcode scanning, print receipt integrations, and sales metrics dashboards.
                   </p>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '16px' }}>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>Leaflet / Mapbox</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>Image Upload CDN</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>React Native Compatible</span>
+                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>React / Electron</span>
+                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>NodeJS / Express</span>
+                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>SQLite / PostgreSQL</span>
                   </div>
                 </div>
               </div>
@@ -810,35 +810,76 @@ function App() {
               <p className="section-subtitle">No hidden fees. We host on free-tier friendly serverless environments.</p>
             </div>
             <div className="grid-cols-3">
-              <div className="glass-card pricing-card">
+              <div className="glass-card pricing-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                <span className="badge badge-secondary" style={{ alignSelf: 'flex-start', marginBottom: '12px' }}>SME Starter</span>
                 <h3>Business Website</h3>
-                <div className="pricing-price">$1,499 <span>/ setup</span></div>
-                <ul className="pricing-features">
-                  <li><CheckCircle2 size={16} color="var(--secondary)" /> Custom React Landing Page</li>
-                  <li><CheckCircle2 size={16} color="var(--secondary)" /> Fast SEO Optimization</li>
-                  <li><CheckCircle2 size={16} color="var(--secondary)" /> Lead Capture Inquiry Form</li>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Custom landing page or marketing site to establish local brand authority.</p>
+                
+                <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>Was $2,499 setup / $149 mo</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff', marginTop: '4px' }}>
+                    $1,499 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>one-time setup</span>
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--secondary)', marginTop: '4px' }}>
+                    or $99 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>/ month sub</span>
+                  </div>
+                </div>
+
+                <ul className="pricing-features" style={{ flexGrow: 1, listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Custom React Landing Page</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Booking Form Integration</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> SEO & Managed Free Hosting</li>
                 </ul>
-                <button onClick={() => handleNavClick('contact')} className="btn btn-secondary">Get Started</button>
+                <button onClick={() => handleNavClick('contact')} className="btn btn-secondary" style={{ width: '100%' }}>Get Started</button>
               </div>
-              <div className="glass-card pricing-card popular">
+
+              <div className="glass-card pricing-card popular" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', border: '2px solid var(--primary)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span className="badge" style={{ margin: 0, background: 'rgba(139, 92, 246, 0.2)', color: 'var(--primary)' }}>Most Popular</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: '700' }}>RECOMMENDED</span>
+                </div>
                 <h3>Growth E-Commerce</h3>
-                <div className="pricing-price">$3,499 <span>/ setup</span></div>
-                <ul className="pricing-features">
-                  <li><CheckCircle2 size={16} color="var(--primary)" /> Full Custom Shopping Cart</li>
-                  <li><CheckCircle2 size={16} color="var(--primary)" /> Stripe / PayPal Integrations</li>
-                  <li><CheckCircle2 size={16} color="var(--primary)" /> Admin Inventory Panel</li>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Complete custom shopping storefronts built to scale retail revenue.</p>
+                
+                <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>Was $4,999 setup / $299 mo</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff', marginTop: '4px' }}>
+                    $3,499 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>one-time setup</span>
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--primary)', marginTop: '4px' }}>
+                    or $199 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>/ month sub</span>
+                  </div>
+                </div>
+
+                <ul className="pricing-features" style={{ flexGrow: 1, listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--primary)" /> Custom SupaCart Storefront</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--primary)" /> Stripe / PayPal / M-Pesa</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--primary)" /> Configurable Admin Dashboard</li>
                 </ul>
-                <button onClick={() => handleNavClick('contact')} className="btn btn-primary">Launch Shop</button>
+                <button onClick={() => handleNavClick('contact')} className="btn btn-primary" style={{ width: '100%' }}>Launch Shop</button>
               </div>
-              <div className="glass-card pricing-card">
-                <h3>Enterprise Automation</h3>
-                <div className="pricing-price">$5,999 <span>/ setup</span></div>
-                <ul className="pricing-features">
-                  <li><CheckCircle2 size={16} color="var(--secondary)" /> Custom React Native Mobile App</li>
-                  <li><CheckCircle2 size={16} color="var(--secondary)" /> Tailored AI Agent Integrations</li>
-                  <li><CheckCircle2 size={16} color="var(--secondary)" /> Background Lead Scrapers</li>
+
+              <div className="glass-card pricing-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                <span className="badge badge-secondary" style={{ alignSelf: 'flex-start', marginBottom: '12px' }}>Enterprise Suite</span>
+                <h3>Enterprise POS & Systems</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Full Point of Sale systems and automated mobile/web applications.</p>
+                
+                <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>Was $8,499 setup / $499 mo</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff', marginTop: '4px' }}>
+                    $5,999 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>one-time setup</span>
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--secondary)', marginTop: '4px' }}>
+                    or $349 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>/ month sub</span>
+                  </div>
+                </div>
+
+                <ul className="pricing-features" style={{ flexGrow: 1, listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Custom Cloud/Offline POS System</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> React Native Mobile App</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Custom Workflow AI Automation</li>
                 </ul>
-                <button onClick={() => handleNavClick('contact')} className="btn btn-secondary">Book Call</button>
+                <button onClick={() => handleNavClick('contact')} className="btn btn-secondary" style={{ width: '100%' }}>Book Call</button>
               </div>
             </div>
           </div>
