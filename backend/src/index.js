@@ -4,7 +4,7 @@ const cron = require('node-cron');
 require('dotenv').config();
 
 const db = require('./db');
-const initDb = require('./initDb');
+const { initDb } = require('./initDb');
 const { generateCoverLetter, generateClientOutreach, computeScholarshipRelevance, generateSopOrPitch } = require('./services/gemini');
 const { scrapeRemotive } = require('./services/jobScraper');
 const { discoverLeads, auditWebsite, calculateLeadScore } = require('./services/leadGenerator');
