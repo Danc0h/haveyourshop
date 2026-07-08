@@ -135,6 +135,14 @@ const mockDb = {
       log_output: 'Starting job scraper pipeline...\nTask 1: Remotive: Success\nTask 2: LinkedIn: Warnings (cookies missing)\nPipeline complete.',
       created_at: new Date(Date.now() - 12 * 3600000).toISOString()
     }
+  ],
+  pricing_configs: [
+    { template_key: 'business_website', base_price_one_time: 1499.00, base_price_yearly: 999.00, base_price_monthly: 99.00, local_discount_multiplier: 0.40 },
+    { template_key: 'ecommerce_platform', base_price_one_time: 3499.00, base_price_yearly: 2399.00, base_price_monthly: 199.00, local_discount_multiplier: 0.40 },
+    { template_key: 'restaurant_platform', base_price_one_time: 2499.00, base_price_yearly: 1799.00, base_price_monthly: 149.00, local_discount_multiplier: 0.40 },
+    { template_key: 'booking_system', base_price_one_time: 1999.00, base_price_yearly: 1399.00, base_price_monthly: 119.00, local_discount_multiplier: 0.40 },
+    { template_key: 'clinic_mgmt', base_price_one_time: 4499.00, base_price_yearly: 2999.00, base_price_monthly: 249.00, local_discount_multiplier: 0.40 },
+    { template_key: 'real_estate_hotel', base_price_one_time: 5999.00, base_price_yearly: 3999.00, base_price_monthly: 349.00, local_discount_multiplier: 0.40 }
   ]
 };
 
@@ -390,6 +398,37 @@ async function queryMock(text, params = []) {
       if (sch) sch.sop_text = sop;
       return { rows: sch ? [sch] : [] };
     }
+  }
+
+  // 11b. SELECT * FROM pricing_configs
+  if (cleanText.includes('select') && cleanText.includes('pricing_configs')) {
+    return { rows: mockDb.pricing_configs };
+  }
+
+  // 11c. UPDATE pricing_configs
+  if (cleanText.includes('update pricing_configs')) {
+    const key = params[4];
+    const conf = mockDb.pricing_configs.find(c => c.template_key === key);
+    if (conf) {
+      conf.base_price_one_time = parseFloat(params[0]);
+      conf.base_price_yearly = parseFloat(params[1]);
+      conf.base_price_monthly = parseFloat(params[2]);
+      conf.local_discount_multiplier = parseFloat(params[3]);
+      return { rows: [conf] };
+    }
+  }
+
+  // 11d. DELETE FROM tables
+  if (cleanText.includes('delete from')) {
+    const id = params[0];
+    if (cleanText.includes('client_leads')) {
+      mockDb.client_leads = mockDb.client_leads.filter(l => l.id !== id);
+    } else if (cleanText.includes('job_listings')) {
+      mockDb.job_listings = mockDb.job_listings.filter(j => j.id !== id);
+    } else if (cleanText.includes('scholarship_listings')) {
+      mockDb.scholarship_listings = mockDb.scholarship_listings.filter(s => s.id !== id);
+    }
+    return { rows: [] };
   }
 
   // 12. TRUNCATE tables (Clear database)

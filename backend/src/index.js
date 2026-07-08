@@ -404,9 +404,10 @@ app.post('/api/automation/scrape-jobs', async (req, res) => {
  * Trigger client lead scanning outreach crawler immediately.
  */
 app.post('/api/automation/crawl-leads', async (req, res) => {
+  const { niche, country, city } = req.body;
   try {
     jobTracker.startJob('client_outreach');
-    const result = await runClientOutreachPipeline();
+    const result = await runClientOutreachPipeline(niche, country, city);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -445,25 +446,108 @@ app.get('/api/crm/cron-runs', async (req, res) => {
  */
 app.get('/api/crm/metrics', async (req, res) => {
   try {
+    // 1. Overall
     const leadsResult = await db.query('SELECT status, COUNT(*) FROM client_leads GROUP BY status');
     const jobsResult = await db.query('SELECT status, COUNT(*) FROM job_listings GROUP BY status');
-    const outreachResult = await db.query('SELECT channel, COUNT(*) FROM outreach_history GROUP BY channel');
     const scholarshipsResult = await db.query('SELECT status, COUNT(*) FROM scholarship_listings GROUP BY status');
-    
-    // Structure stats
-    const stats = {
+
+    // 2. Last 7 Days
+    const leads7Result = await db.query("SELECT status, COUNT(*) FROM client_leads WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY status");
+    const jobs7Result = await db.query("SELECT status, COUNT(*) FROM job_listings WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY status");
+    const scholarships7Result = await db.query("SELECT status, COUNT(*) FROM scholarship_listings WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY status");
+
+    // 3. Last 30 Days
+    const leads30Result = await db.query("SELECT status, COUNT(*) FROM client_leads WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY status");
+    const jobs30Result = await db.query("SELECT status, COUNT(*) FROM job_listings WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY status");
+    const scholarships30Result = await db.query("SELECT status, COUNT(*) FROM scholarship_listings WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY status");
+
+    const getStatsStructure = () => ({
       leads: { New: 0, Contacted: 0, Replied: 0, 'Meeting Scheduled': 0, 'Proposal Sent': 0, Won: 0, Lost: 0 },
       jobs: { Discovered: 0, Applied: 0, Interview: 0, Rejected: 0, Offer: 0 },
-      outreach: { Email: 0, LinkedIn: 0, WhatsApp: 0, 'Contact Form': 0 },
       scholarships: { Discovered: 0, 'SOP Drafted': 0, Applied: 0, Interview: 0, Accepted: 0, Rejected: 0 }
-    };
+    });
 
-    leadsResult.rows.forEach(row => { stats.leads[row.status] = parseInt(row.count, 10); });
-    jobsResult.rows.forEach(row => { stats.jobs[row.status] = parseInt(row.count, 10); });
-    outreachResult.rows.forEach(row => { stats.outreach[row.channel] = parseInt(row.count, 10); });
-    scholarshipsResult.rows.forEach(row => { stats.scholarships[row.status] = parseInt(row.count, 10); });
+    const statsOverall = getStatsStructure();
+    const stats7Days = getStatsStructure();
+    const stats30Days = getStatsStructure();
 
-    res.json(stats);
+    leadsResult.rows.forEach(row => { statsOverall.leads[row.status] = parseInt(row.count, 10); });
+    jobsResult.rows.forEach(row => { statsOverall.jobs[row.status] = parseInt(row.count, 10); });
+    scholarshipsResult.rows.forEach(row => { statsOverall.scholarships[row.status] = parseInt(row.count, 10); });
+
+    leads7Result.rows.forEach(row => { stats7Days.leads[row.status] = parseInt(row.count, 10); });
+    jobs7Result.rows.forEach(row => { stats7Days.jobs[row.status] = parseInt(row.count, 10); });
+    scholarships7Result.rows.forEach(row => { stats7Days.scholarships[row.status] = parseInt(row.count, 10); });
+
+    leads30Result.rows.forEach(row => { stats30Days.leads[row.status] = parseInt(row.count, 10); });
+    jobs30Result.rows.forEach(row => { stats30Days.jobs[row.status] = parseInt(row.count, 10); });
+    scholarships30Result.rows.forEach(row => { stats30Days.scholarships[row.status] = parseInt(row.count, 10); });
+
+    res.json({
+      overall: statsOverall,
+      last7Days: stats7Days,
+      last30Days: stats30Days
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Pricing Configurations endpoints.
+ */
+app.get('/api/crm/pricing-configs', async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM pricing_configs ORDER BY template_key');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/crm/pricing-configs', async (req, res) => {
+  const { template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier } = req.body;
+  try {
+    await db.query(`
+      INSERT INTO pricing_configs (template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (template_key) DO UPDATE SET
+        base_price_one_time = EXCLUDED.base_price_one_time,
+        base_price_yearly = EXCLUDED.base_price_yearly,
+        base_price_monthly = EXCLUDED.base_price_monthly,
+        local_discount_multiplier = EXCLUDED.local_discount_multiplier;
+    `, [template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier]);
+    res.json({ success: true, message: `Pricing configuration updated for ${template_key}.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Granular Deletion endpoints.
+ */
+app.delete('/api/crm/leads/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM client_leads WHERE id = $1', [req.params.id]);
+    res.json({ success: true, message: 'Lead deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/crm/jobs/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM job_listings WHERE id = $1', [req.params.id]);
+    res.json({ success: true, message: 'Job deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/crm/scholarships/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM scholarship_listings WHERE id = $1', [req.params.id]);
+    res.json({ success: true, message: 'Scholarship deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

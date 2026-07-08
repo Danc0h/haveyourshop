@@ -1,8 +1,8 @@
 const db = require('../db');
 const jobTracker = require('./jobTracker');
-const { computeJobRelevance, generateClientOutreach } = require('./gemini');
+const { computeJobRelevance } = require('./gemini');
 const { scrapeRemotive } = require('./jobScraper');
-const { auditWebsite, calculateLeadScore } = require('./leadGenerator');
+const { calculateLeadScore } = require('./leadGenerator');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 let aiClient = null;
@@ -58,7 +58,6 @@ function parseRssFeed(xmlText) {
     if (authorMatch) {
       companyName = authorMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
     } else {
-      // Fallback: parse company name from title e.g. "Google is looking for..."
       const title = titleMatch ? titleMatch[1] : '';
       if (title.includes(' at ')) {
         companyName = title.split(' at ')[1].split('(')[0].trim();
@@ -74,7 +73,146 @@ function parseRssFeed(xmlText) {
       });
     }
   }
-  return items.slice(0, 10); // cap at 10 items per feed to conserve requests
+  return items.slice(0, 10);
+}
+
+/**
+ * Real DuckDuckGo Search Lead Crawler.
+ * Scrapes HTML search results to retrieve organic, active business websites.
+ */
+async function searchRealDuckDuckGoLeads(niche, city) {
+  const query = encodeURIComponent(`${niche} in ${city}`);
+  const url = `https://html.duckduckgo.com/html/?q=${query}`;
+  console.log(`🔍 [Scraper] Querying DuckDuckGo HTML: ${url}`);
+  
+  const results = [];
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!res.ok) throw new Error(`DDG response status: ${res.status}`);
+    
+    const html = await res.text();
+    const resultBlocks = html.split('<div class="result result--links');
+    
+    for (let i = 1; i < resultBlocks.length; i++) {
+      const block = resultBlocks[i];
+      const titleMatch = block.match(/<a class="result__link"[\s\S]*?>([\s\S]*?)<\/a>/);
+      const urlMatch = block.match(/<a class="result__url" href="([^"]+)"/);
+      const snippetMatch = block.match(/<a class="result__snippet"[\s\S]*?>([\s\S]*?)<\/a>/);
+      
+      if (titleMatch && urlMatch) {
+        let rawUrl = urlMatch[1];
+        if (rawUrl.includes('duckduckgo.com/l/?uddg=')) {
+          const match = rawUrl.match(/uddg=([^&]+)/);
+          if (match) rawUrl = decodeURIComponent(match[1]);
+        }
+        
+        const website = rawUrl;
+        const lowUrl = website.toLowerCase();
+        // Exclude aggregator/listings directories to get actual direct local business sites
+        if (['yelp.', 'yellowpages.', 'tripadvisor.', 'wikipedia.', 'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'groupon.', 'mapquest.'].some(d => lowUrl.includes(d))) {
+          continue;
+        }
+        
+        const title = titleMatch[1].replace(/<[^>]*>/g, '').trim();
+        const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '').trim() : '';
+        
+        results.push({
+          business_name: title.split('-')[0].split('|')[0].trim(),
+          website_url: website,
+          snippet: snippet
+        });
+      }
+    }
+  } catch (err) {
+    console.error('⚠️ DuckDuckGo scraping failed:', err.message);
+  }
+  return results.slice(0, 5); // Return top 5 real candidates
+}
+
+/**
+ * Real website audit scan.
+ * Performs direct fetches and mines HTML content for active data points.
+ */
+async function auditRealWebsite(url) {
+  const audit = {
+    no_website: false,
+    no_booking: true,
+    no_ssl: true,
+    outdated_tech: false,
+    pagespeed_score: 80
+  };
+  let email = null;
+  let phone = null;
+  let social_media_url = null;
+
+  if (!url) {
+    audit.no_website = true;
+    return { audit, email, phone, social_media_url };
+  }
+
+  const startTime = Date.now();
+  try {
+    const cleanUrl = url.startsWith('http') ? url : `http://${url}`;
+    if (cleanUrl.startsWith('https://')) {
+      audit.no_ssl = false;
+    }
+    
+    const res = await fetch(cleanUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+    
+    const latency = Date.now() - startTime;
+    // Speed score mapping based on server latency response times
+    audit.pagespeed_score = Math.max(10, Math.min(100, Math.round(100 - (latency / 50))));
+
+    const html = await res.text();
+    
+    if (res.url.startsWith('https://')) {
+      audit.no_ssl = false;
+    }
+
+    const lowerHtml = html.toLowerCase();
+    if (['booking', 'calendar', 'schedule', 'appoint', 'reserv', 'book online'].some(kw => lowerHtml.includes(kw))) {
+      audit.no_booking = false;
+    }
+
+    if (['wp-content', 'wp-includes', 'joomla', 'drupal', 'generator'].some(kw => lowerHtml.includes(kw))) {
+      audit.outdated_tech = true;
+    }
+
+    // Extract email using regex
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}/g;
+    const emailsFound = html.match(emailRegex);
+    if (emailsFound && emailsFound.length > 0) {
+      email = emailsFound[0];
+    }
+
+    // Extract social media links
+    const igRegex = /(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9._]+)/i;
+    const fbRegex = /(?:facebook\.com)\/([a-zA-Z0-9._-]+)/i;
+    
+    const igMatch = html.match(igRegex);
+    const fbMatch = html.match(fbRegex);
+    if (igMatch) {
+      social_media_url = `https://instagram.com/${igMatch[1]}`;
+    } else if (fbMatch) {
+      social_media_url = `https://facebook.com/${fbMatch[1]}`;
+    }
+  } catch (err) {
+    console.warn(`[Audit] Failed to load site ${url}:`, err.message);
+    audit.outdated_tech = true;
+    audit.pagespeed_score = 25;
+  }
+
+  return { audit, email, phone, social_media_url };
 }
 
 /**
@@ -89,57 +227,9 @@ async function runJobScraperPipeline() {
 
   logLines.push(`[${new Date().toISOString()}] 🚀 Starting Daily Job Scraper Pipeline...`);
 
-  // Rotate target career focus country daily
   const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'Australia', 'Kenya'];
   const targetCountry = countries[new Date().getDay() % countries.length];
   logLines.push(`[Info] Target country for today's careers rotation: ${targetCountry}`);
-
-  // Helper for generating simulated jobs using Gemini
-  const generateSimulatedJob = async (platformName, promptContext) => {
-    const getLocalJobFallback = () => {
-      const uniqueId = Date.now() + Math.floor(Math.random() * 1000);
-      return {
-        company_name: `${platformName} Mock Tech ${uniqueId % 100}`,
-        position: 'Remote React & Node Developer',
-        salary: '$95,000 - $125,000',
-        location: 'Remote',
-        application_url: `https://mockjob-${platformName.toLowerCase()}-${uniqueId}.com`,
-        job_description: 'We are seeking a developer skilled in React, Node, and PostgreSQL databases to construct clean interfaces and backend integrations...',
-        relevance_score: 85
-      };
-    };
-
-    if (!aiClient) {
-      return getLocalJobFallback();
-    }
-    try {
-      const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
-      const prompt = `
-        You are a job scraper simulating discovery of remote developer jobs.
-        Platform: ${platformName}
-        Focus: ${promptContext}
-        Generate one realistic, high-quality software development job listing that matches a Node.js, React, Python, or PHP developer with a Software Engineering degree.
-        Return ONLY a JSON object matching this format:
-        {
-          "company_name": "Company Name",
-          "position": "Job Title (must be developer/engineer)",
-          "salary": "$Salary Range or competitive",
-          "location": "Remote (regions)",
-          "application_url": "valid-looking URL",
-          "job_description": "Detailed description of requirements",
-          "relevance_score": 85
-        }
-        Do not add any markdown formatting, backticks, or additional text. Just the raw JSON string.
-      `;
-      const result = await model.generateContent(prompt);
-      let text = result.response.text().trim();
-      text = text.replace(/^```json/, '').replace(/```$/, '').trim();
-      return JSON.parse(text);
-    } catch (e) {
-      console.error(`Simulate job failed for ${platformName} (${e.message}). Using local fallback.`);
-      return getLocalJobFallback();
-    }
-  };
 
   // TASK 1: Check Remotive API
   try {
@@ -172,32 +262,19 @@ async function runJobScraperPipeline() {
     status = 'Warning';
   }
 
-  // TASK 2: Check LinkedIn
+  // TASK 2: Check LinkedIn (NO MOCK/SIMULATION ALLOWED)
   try {
     if (!jobTracker.isJobActive('job_scraper')) {
       logLines.push(`[Cancel] Scraper terminated by user request.`);
       status = 'Warning';
     } else {
       logLines.push(`[Task 2] Connecting to LinkedIn Jobs...`);
-      logLines.push(`[Task 2] Warning: LinkedIn anti-scraping walls active. Session cookie not configured in .env.`);
-      logLines.push(`[Task 2] Executing AI-Assisted Smart Search simulation...`);
-      
-      const simJob = await generateSimulatedJob('LinkedIn', 'Senior Full Stack Software Roles');
-      if (simJob) {
-        const exists = await jobExists(simJob.application_url);
-        if (!exists) {
-          await db.query(`
-            INSERT INTO job_listings (company_name, position, salary, location, application_url, job_description, relevance_score, status, how_to_apply)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Discovered', $8)
-          `, [simJob.company_name, simJob.position, simJob.salary, simJob.location, simJob.application_url, simJob.job_description, simJob.relevance_score, 'Submit your CV and cover letter via the application link.']);
-          
-          newlyDiscoveredJobs.push(simJob);
-          logLines.push(`[Task 2] Discovered LinkedIn role: "${simJob.position}" at "${simJob.company_name}"`);
-          tasksExecuted.push({ name: 'LinkedIn Scrape', status: 'Warning', details: 'LinkedIn scraper blocked; simulated 1 high-value role.' });
-        } else {
-          tasksExecuted.push({ name: 'LinkedIn Scrape', status: 'Warning', details: 'LinkedIn scraper blocked; simulated role already exists.' });
-        }
-      }
+      logLines.push(`[Task 2] Warning: LinkedIn anti-scraping walls active. Local desktop scraper session required.`);
+      tasksExecuted.push({ 
+        name: 'LinkedIn Scrape', 
+        status: 'Warning', 
+        details: 'Server blocked by credentials check. Execute desktop_scraper.js locally to push live LinkedIn targets.' 
+      });
     }
   } catch (err) {
     logLines.push(`[Task 2] Failed: ${err.message}`);
@@ -205,32 +282,19 @@ async function runJobScraperPipeline() {
     status = 'Warning';
   }
 
-  // TASK 4: Check Wellfound
+  // TASK 4: Check Wellfound (NO MOCK/SIMULATION ALLOWED)
   try {
     if (!jobTracker.isJobActive('job_scraper')) {
       logLines.push(`[Cancel] Scraper terminated by user request.`);
       status = 'Warning';
     } else {
       logLines.push(`[Task 4] Querying Wellfound (formerly AngelList) startup listings...`);
-      logLines.push(`[Task 4] Warning: Wellfound Cloudflare protection active. Session auth missing.`);
-      logLines.push(`[Task 4] Executing AI-Assisted Smart Search simulation...`);
-      
-      const simJob = await generateSimulatedJob('Wellfound', 'Early Stage Startup SWE positions');
-      if (simJob) {
-        const exists = await jobExists(simJob.application_url);
-        if (!exists) {
-          await db.query(`
-            INSERT INTO job_listings (company_name, position, salary, location, application_url, job_description, relevance_score, status, how_to_apply)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Discovered', $8)
-          `, [simJob.company_name, simJob.position, simJob.salary, simJob.location, simJob.application_url, simJob.job_description, simJob.relevance_score, 'Quick apply via Wellfound portal.']);
-          
-          newlyDiscoveredJobs.push(simJob);
-          logLines.push(`[Task 4] Discovered startup role: "${simJob.position}" at "${simJob.company_name}"`);
-          tasksExecuted.push({ name: 'Check Wellfound', status: 'Warning', details: 'Auth token missing; generated 1 AI startup target.' });
-        } else {
-          tasksExecuted.push({ name: 'Check Wellfound', status: 'Warning', details: 'Auth token missing; startup target duplicate.' });
-        }
-      }
+      logLines.push(`[Task 4] Warning: Wellfound Cloudflare protection active. Session authorization token missing.`);
+      tasksExecuted.push({ 
+        name: 'Check Wellfound', 
+        status: 'Warning', 
+        details: 'Cloudflare active. Run Playwright local session script to capture startup openings.' 
+      });
     }
   } catch (err) {
     logLines.push(`[Task 4] Failed: ${err.message}`);
@@ -278,7 +342,6 @@ async function runJobScraperPipeline() {
             const matchesStack = ['react', 'native', 'node', 'javascript', 'js', 'python', 'django', 'php', 'laravel', 'docker', 'kubernetes', 'container'].some(kw => matchText.includes(kw));
             
             if (matchesStack) {
-              // Throttle Gemini API calls to protect user quota limits (max 1 call per feed, fallback to heuristics)
               let score = 75;
               if (geminiCalls < 1) {
                 try {
@@ -317,29 +380,14 @@ async function runJobScraperPipeline() {
           }
           logLines.push(`[Task 5] Ingested ${feedAdded} qualified roles from ${feed.name}.`);
         } catch (feedErr) {
-          logLines.push(`[Task 5] Note: Live fetch failed for ${feed.name} (${feedErr.message}). Running AI-Assisted simulation fallback...`);
+          logLines.push(`[Task 5] Note: Live fetch failed for ${feed.name} (${feedErr.message}).`);
           errorsOccurred = true;
-          
-          const simJob = await generateSimulatedJob(feed.name, 'Niche Remote Developer or DevOps contract posting');
-          if (simJob) {
-            const exists = await jobExists(simJob.application_url);
-            if (!exists) {
-              await db.query(`
-                INSERT INTO job_listings (company_name, position, salary, location, application_url, job_description, relevance_score, status, how_to_apply)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, 'Discovered', $8)
-              `, [simJob.company_name, simJob.position, simJob.salary, simJob.location, simJob.application_url, simJob.job_description, simJob.relevance_score, 'Submit your CV and cover letter via the application link.']);
-              
-              newlyDiscoveredJobs.push(simJob);
-              rssIngested++;
-              logLines.push(`[Task 5] Discovered simulated role: "${simJob.position}" at "${simJob.company_name}"`);
-            }
-          }
         }
       }
       tasksExecuted.push({ 
         name: 'RSS Polling', 
         status: errorsOccurred ? 'Warning' : 'Success', 
-        details: `Polled WeWorkRemotely, Remote.co, WorkingNomads. Ingested ${rssIngested} freelance contracts.` 
+        details: `Polled live freelance RSS feeds. Ingested ${rssIngested} qualified freelance contracts.` 
       });
     }
   } catch (err) {
@@ -351,7 +399,6 @@ async function runJobScraperPipeline() {
   logLines.push(`[${new Date().toISOString()}] 🏁 Job Scraper Pipeline execution finished.`);
   const logOutput = logLines.join('\n');
 
-  // Mark job as finished in tracker
   jobTracker.stopJob('job_scraper');
 
   // Write to DB logs
@@ -364,7 +411,7 @@ async function runJobScraperPipeline() {
     console.error('Failed to log cron_run to DB:', dbErr.message);
   }
 
-  // Trigger email notification (Only if newlyDiscoveredJobs > 0)
+  // Trigger email updates on new jobs only
   try {
     if (newlyDiscoveredJobs.length > 0) {
       const { sendPersonalEmail } = require('./email');
@@ -415,7 +462,7 @@ async function runJobScraperPipeline() {
         html: emailHtml
       });
     } else {
-      console.log('ℹ️ [Job Scraper] Zero new jobs found. Skipping email updates to prevent inbox spam.');
+      console.log('ℹ️ [Job Scraper] Zero new jobs found. Skipping email updates.');
     }
   } catch (emailErr) {
     console.error('Failed to send job scraper report email:', emailErr.message);
@@ -426,9 +473,9 @@ async function runJobScraperPipeline() {
 
 /**
  * Runs the Client Outreach Pipeline.
- * Executed daily at 9:30 AM.
+ * Executed daily at 9:30 AM (or manually controlled with specific parameters).
  */
-async function runClientOutreachPipeline() {
+async function runClientOutreachPipeline(customNiche, customCountry, customCity) {
   const logLines = [];
   const tasksExecuted = [];
   const newlyDiscoveredLeads = [];
@@ -436,7 +483,6 @@ async function runClientOutreachPipeline() {
 
   logLines.push(`[${new Date().toISOString()}] 🚀 Starting Daily Client Outreach Pipeline...`);
   
-  // Rotate specific industries daily to scan globally
   const niches = [
     'Boutiques and Retail Shops', 
     'Dentists and Dental Practices', 
@@ -447,80 +493,22 @@ async function runClientOutreachPipeline() {
     'Real Estate Agencies', 
     'E-commerce Stores'
   ];
-  const cities = ['Dubai', 'Amsterdam', 'Toronto', 'London', 'Sydney', 'Nairobi'];
-  const targetNiche = niches[new Date().getDay() % niches.length];
+  const defaultCities = ['Dubai', 'Amsterdam', 'Toronto', 'London', 'Sydney', 'Nairobi'];
   
-  logLines.push(`[Info] Rotating daily search industry for outreach: ${targetNiche}`);
-  logLines.push(`[Info] Scanning globally across target cities: ${cities.join(', ')}`);
-
-  // Helper for generating simulated leads using Gemini
-  const generateSimulatedLead = async (sourceName, promptContext, city) => {
-    const getLocalLeadFallback = () => {
-      const uniqueId = Date.now() + Math.floor(Math.random() * 1000);
-      const cleanSource = sourceName.split(' ')[0].toLowerCase().replace(/\s+/g, '');
-      const bizName = `${sourceName.split(' ')[0]} ${targetNiche.split(' ')[0]} ${uniqueId % 100}`;
-      return {
-        business_name: bizName,
-        industry: targetNiche,
-        location: city,
-        website_url: `http://www.${bizName.toLowerCase().replace(/\s+/g, '')}.com`,
-        email: `contact@${bizName.toLowerCase().replace(/\s+/g, '')}.com`,
-        phone: '+1-416-555-' + String(uniqueId).padStart(4, '0'),
-        social_media_url: `https://www.${cleanSource}.com/${bizName.toLowerCase().replace(/\s+/g, '')}`,
-        audit: { no_website: false, no_booking: true, outdated_tech: uniqueId % 2 === 0, pagespeed_score: 40 }
-      };
-    };
-
-    if (!aiClient) {
-      return getLocalLeadFallback();
-    }
-    try {
-      const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
-      const prompt = `
-        You are a cold-outreach scraper looking for prospective lead business targets that lack a modern, solid web presence.
-        Source: ${sourceName}
-        Target Niche: ${targetNiche}
-        Target City/Location: ${city}
-        Context: ${promptContext}
-        Generate one realistic, actual-looking business target in ${city} that has a digital presence deficiency.
-        Return ONLY a JSON object matching this format:
-        {
-          "business_name": "Business Name",
-          "industry": "${targetNiche}",
-          "location": "${city}",
-          "website_url": "deficient-website-url.com or empty string if no website",
-          "email": "contact@business-domain.com",
-          "phone": "+...",
-          "social_media_url": "instagram.com/handle_name or facebook.com/page",
-          "audit": {
-            "no_website": true_or_false,
-            "no_booking": true_or_false,
-            "no_ssl": true_or_false,
-            "outdated_tech": true_or_false,
-            "pagespeed_score": 35
-          }
-        }
-        Do not add any markdown formatting or backticks. Just the raw JSON string.
-      `;
-      const result = await model.generateContent(prompt);
-      let text = result.response.text().trim();
-      text = text.replace(/^```json/, '').replace(/```$/, '').trim();
-      return JSON.parse(text);
-    } catch (e) {
-      console.error(`Simulate lead failed for ${sourceName} (${e.message}). Using local fallback.`);
-      return getLocalLeadFallback();
-    }
-  };
+  const targetNiche = customNiche || niches[new Date().getDay() % niches.length];
+  const targetCities = customCity ? [customCity] : defaultCities;
+  
+  logLines.push(`[Info] Target niche category: ${targetNiche}`);
+  logLines.push(`[Info] Scanning target cities: ${targetCities.join(', ')}`);
 
   // Helper to ingest lead and calculate score
   const ingestLead = async (lead, sourceName) => {
     const exists = await leadExists(lead.business_name, lead.website_url);
     if (exists) {
-      logLines.push(`[${sourceName}] Skipped already contacted or existing lead: "${lead.business_name}" in ${lead.location}`);
+      logLines.push(`[${sourceName}] Skipped duplicate existing lead: "${lead.business_name}" in ${lead.location}`);
       return false;
     }
     
-    // Perform audit and calculate score
     let score = calculateLeadScore(lead.audit);
     
     await db.query(`
@@ -528,7 +516,7 @@ async function runClientOutreachPipeline() {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'New', $9)
     `, [lead.business_name, lead.industry, lead.location, lead.website_url, lead.email, lead.phone, score, JSON.stringify(lead.audit), lead.social_media_url]);
     
-    logLines.push(`[${sourceName}] Discovered New Lead: "${lead.business_name}" in ${lead.location} (Deficiency score: ${score})`);
+    logLines.push(`[${sourceName}] Ingested Lead: "${lead.business_name}" in ${lead.location} (Deficiency score: ${score})`);
     
     newlyDiscoveredLeads.push({
       ...lead,
@@ -538,71 +526,59 @@ async function runClientOutreachPipeline() {
     return true;
   };
 
-  // Loop through all cities to scan globally for wider outreach
-  for (const city of cities) {
+  // Loop through targets and crawl real DuckDuckGo search results
+  for (const city of targetCities) {
     if (!jobTracker.isJobActive('client_outreach')) {
       logLines.push(`[Cancel] Client outreach pipeline terminated by user request.`);
       status = 'Warning';
       break;
     }
 
-    logLines.push(`\n--- Scanning City: ${city} ---`);
+    logLines.push(`\n--- Crawling City: ${city} ---`);
 
-    // TASK 1: Check Instagram Shops
     try {
-      logLines.push(`[Instagram Shops] Scanning in ${city} for deficient profiles...`);
-      const lead = await generateSimulatedLead('Instagram Shops', `Global e-commerce brand or local storefront profile in ${city} lacking a stand-alone web domain.`, city);
-      if (lead) {
-        await ingestLead(lead, 'Instagram Shops');
+      // Fetch organic search leads via DuckDuckGo HTML scraper
+      const realResults = await searchRealDuckDuckGoLeads(targetNiche, city);
+      
+      if (realResults.length === 0) {
+        logLines.push(`[Scraper] Note: No organic websites found for ${targetNiche} in ${city}.`);
+        continue;
+      }
+
+      for (const res of realResults) {
+        if (!jobTracker.isJobActive('client_outreach')) break;
+        
+        logLines.push(`[Audit] Conducting digital presence audit on: ${res.website_url}`);
+        // Run a real-time HTTP fetch audit to check SSL, booking slots, and latency page speeds
+        const auditData = await auditRealWebsite(res.website_url);
+        
+        const lead = {
+          business_name: res.business_name,
+          industry: targetNiche,
+          location: city,
+          website_url: res.website_url,
+          email: auditData.email,
+          phone: auditData.phone,
+          social_media_url: auditData.social_media_url,
+          audit: auditData.audit
+        };
+
+        await ingestLead(lead, 'DuckDuckGo Scraper');
       }
     } catch (err) {
-      logLines.push(`[Instagram Shops] Failed for ${city}: ${err.message}`);
-    }
-
-    // TASK 2: Check Facebook Marketplace
-    try {
-      logLines.push(`[Facebook Marketplace] Scanning in ${city} for deficient profiles...`);
-      const lead = await generateSimulatedLead('Facebook Marketplace', `Global service provider listing on Marketplace in ${city} without a booking portal.`, city);
-      if (lead) {
-        await ingestLead(lead, 'Facebook Marketplace');
-      }
-    } catch (err) {
-      logLines.push(`[Facebook Marketplace] Failed for ${city}: ${err.message}`);
-    }
-
-    // TASK 3: Google Search specific businesses
-    try {
-      logLines.push(`[Google Search] Searching Google Maps & local listings for: ${targetNiche} in ${city}...`);
-      const lead = await generateSimulatedLead('Google Search leads', `A local/global business in ${city} with digital presence gaps (e.g. slow page speeds, no calendar integration, or outdated layout).`, city);
-      if (lead) {
-        await ingestLead(lead, 'Google Search Leads');
-      }
-    } catch (err) {
-      logLines.push(`[Google Search] Failed for ${city}: ${err.message}`);
+      logLines.push(`[Crawler] Search failed for ${city}: ${err.message}`);
     }
   }
 
-  // Compile final task metrics
   tasksExecuted.push({
-    name: 'Instagram Shops Scan',
-    status: 'Success',
-    details: 'Scanned all 6 cities. Ingested new Instagram leads.'
-  });
-  tasksExecuted.push({
-    name: 'FB Marketplace Scan',
-    status: 'Success',
-    details: 'Scanned all 6 cities. Ingested new Marketplace leads.'
-  });
-  tasksExecuted.push({
-    name: 'Google Search Leads',
-    status: 'Success',
-    details: 'Scanned all 6 cities. Ingested new local listings leads.'
+    name: 'DuckDuckGo Lead Crawl',
+    status: status,
+    details: `Scanned cities: ${targetCities.join(', ')}. Ingested ${newlyDiscoveredLeads.length} real leads.`
   });
 
   logLines.push(`[${new Date().toISOString()}] 🏁 Client Outreach Pipeline finished.`);
   const logOutput = logLines.join('\n');
 
-  // Mark job as finished in tracker
   jobTracker.stopJob('client_outreach');
 
   // Write to DB logs
@@ -615,7 +591,7 @@ async function runClientOutreachPipeline() {
     console.error('Failed to log cron_run to DB:', dbErr.message);
   }
 
-  // Trigger email notification (Only if newlyDiscoveredLeads > 0)
+  // Trigger email updates only if leads > 0
   try {
     if (newlyDiscoveredLeads.length > 0) {
       const { sendBusinessEmail } = require('./email');
@@ -631,22 +607,22 @@ async function runClientOutreachPipeline() {
         return `<li><strong>${lead.business_name}</strong> (${lead.location})<br>
                 <strong>Score:</strong> ${score} | <strong>Deficiencies:</strong> ${auditStr}<br>
                 <strong>Contact:</strong> ${lead.email || 'N/A'} | ${lead.phone || 'N/A'}<br>
-                <strong>Social Profile:</strong> <a href="${lead.social_media_url.startsWith('http') ? lead.social_media_url : 'https://' + lead.social_media_url}" style="color: #10B981;">${lead.social_media_url || 'N/A'}</a></li>`;
+                <strong>Social Profile:</strong> <a href="${lead.social_media_url || '#'}" style="color: #10B981;">${lead.social_media_url || 'N/A'}</a></li>`;
       }).join('') + '</ul>';
 
       const emailText = `Hello Dancun,
   
-  The daily Client Outreach pipeline finished executing.
+  The Client Outreach pipeline completed scanning.
   
   Run Time: ${new Date().toLocaleString()}
   Overall Status: ${status}
-  Target Niche Today: ${targetNiche}
-  Scanned Cities: ${cities.join(', ')}
+  Target Niche: ${targetNiche}
+  Scanned Cities: ${targetCities.join(', ')}
   
   --- TASKS EXECUTED ---
   ${tasksExecuted.map(t => `- ${t.name}: [${t.status}] ${t.details}`).join('\n')}
   ${leadListText}
-  You can view draft pitches and send outreaches directly from the CRM panel.
+  You can view pitches directly in the CRM panel.
   
   Best regards,
   Antigravity SWE Bot`;
@@ -655,7 +631,7 @@ async function runClientOutreachPipeline() {
     <h2 style="color: #10B981; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px;">💼 Client Outreach Pipeline Report</h2>
     <p><strong>Run Time:</strong> ${new Date().toLocaleString()}</p>
     <p><strong>Target Niche:</strong> ${targetNiche}</p>
-    <p><strong>Scanned Cities:</strong> ${cities.join(', ')}</p>
+    <p><strong>Scanned Cities:</strong> ${targetCities.join(', ')}</p>
     <p><strong>Overall Status:</strong> <span style="padding: 2px 8px; border-radius: 4px; font-weight: bold; background-color: ${status === 'Success' ? '#D1FAE5; color: #065F46' : '#FEF3C7; color: #92400E'};">${status}</span></p>
     
     <h3>🔄 Tasks Executed</h3>
@@ -664,10 +640,6 @@ async function runClientOutreachPipeline() {
     </ul>
     
     ${leadListHtml}
-    
-    <div style="margin-top: 30px; border-top: 1px solid #E5E7EB; padding-top: 15px; font-size: 12px; color: #6B7280;">
-      <p>This report was generated automatically. You can view the full live log history on your <a href="http://localhost:5173" style="color: #4F46E5;">CRM panel Dashboard</a>.</p>
-    </div>
   </div>`;
 
       await sendBusinessEmail({
@@ -676,7 +648,7 @@ async function runClientOutreachPipeline() {
         html: emailHtml
       });
     } else {
-      console.log('ℹ️ [Client Scraper] Zero new leads discovered today. Skipping email notifications to avoid inbox spam.');
+      console.log('ℹ   [Client Scraper] Zero new leads discovered today. Skipping email update.');
     }
   } catch (emailErr) {
     console.error('Failed to send client outreach report email:', emailErr.message);

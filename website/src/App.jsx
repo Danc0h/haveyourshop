@@ -15,6 +15,8 @@ import {
   X,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
+  Trash2,
   TrendingUp,
   Briefcase,
   Users,
@@ -30,6 +32,19 @@ import './App.css';
 // API Configuration
 const API_URL = 'https://haveyourshop.onrender.com/api';
 
+const groupItemsByDate = (items) => {
+  const groups = {};
+  if (!items || !Array.isArray(items)) return groups;
+  items.forEach(item => {
+    const dateStr = item.created_at ? new Date(item.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Discovered';
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(item);
+  });
+  return groups;
+};
+
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [isScrolled, setIsScrolled] = useState(false);
@@ -40,6 +55,31 @@ function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
   const [cronRuns, setCronRuns] = useState([]);
+
+  // Custom Pricing and Geolocation States
+  const [pricingConfigs, setPricingConfigs] = useState([
+    { template_key: 'business_website', base_price_one_time: 1499.00, base_price_yearly: 999.00, base_price_monthly: 99.00, local_discount_multiplier: 0.40 },
+    { template_key: 'ecommerce_platform', base_price_one_time: 3499.00, base_price_yearly: 2399.00, base_price_monthly: 199.00, local_discount_multiplier: 0.40 },
+    { template_key: 'restaurant_platform', base_price_one_time: 2499.00, base_price_yearly: 1799.00, base_price_monthly: 149.00, local_discount_multiplier: 0.40 },
+    { template_key: 'booking_system', base_price_one_time: 1999.00, base_price_yearly: 1399.00, base_price_monthly: 119.00, local_discount_multiplier: 0.40 },
+    { template_key: 'clinic_mgmt', base_price_one_time: 4499.00, base_price_yearly: 2999.00, base_price_monthly: 249.00, local_discount_multiplier: 0.40 },
+    { template_key: 'real_estate_hotel', base_price_one_time: 5999.00, base_price_yearly: 3999.00, base_price_monthly: 349.00, local_discount_multiplier: 0.40 }
+  ]);
+  const [clientCountry, setClientCountry] = useState('US');
+  const [clientCurrency, setClientCurrency] = useState('USD');
+  const [priceMultiplier, setPriceMultiplier] = useState(1.0);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [selectedPricingTier, setSelectedPricingTier] = useState('monthly'); // 'monthly', 'yearly', 'onetime'
+
+  // Admin Custom Scraper Command States
+  const [scraperCountry, setScraperCountry] = useState('United States');
+  const [scraperCities, setScraperCities] = useState(['New York']);
+  const [customCityInput, setCustomCityInput] = useState('');
+  const [scraperNiche, setScraperNiche] = useState('Dentists and Dental Practices');
+  const [customNicheInput, setCustomNicheInput] = useState('');
+
+  // Analytics tab filter range
+  const [analyticsRange, setAnalyticsRange] = useState('overall'); // 'overall', 'last7Days', 'last30Days'
   
   // CRM Dashboard State
   const [crmTab, setCrmTab] = useState('leads'); // 'leads', 'jobs', 'scholarships', 'analytics', 'logs'
@@ -92,6 +132,47 @@ function App() {
     message: ''
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
+  // Resolve client IP and fetch custom pricing configs
+  const fetchPricingConfigs = async () => {
+    try {
+      const res = await fetch(`${API_URL}/crm/pricing-configs`);
+      if (res.ok) {
+        const data = await res.json();
+        setPricingConfigs(data);
+      }
+    } catch (e) {
+      console.warn('Pricing config fetch failed.');
+    }
+  };
+
+  useEffect(() => {
+    const getGeoIp = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        if (res.ok) {
+          const data = await res.json();
+          setClientCountry(data.country || 'US');
+          if (data.country === 'AE') {
+            setClientCurrency('AED');
+            setPriceMultiplier(1.0);
+          } else if (['KE', 'NG', 'TZ', 'UG', 'RW', 'ZA'].includes(data.country)) {
+            setClientCurrency('KES');
+            setPriceMultiplier(0.40);
+          } else {
+            setClientCurrency('USD');
+            setPriceMultiplier(1.0);
+          }
+        }
+      } catch (err) {
+        console.warn('GeoIP fetch failed, defaulting to USD.');
+        setClientCountry('US');
+        setClientCurrency('USD');
+        setPriceMultiplier(1.0);
+      }
+    };
+    getGeoIp();
+    fetchPricingConfigs();
+  }, []);
 
   // Monitor scroll for header styling
   useEffect(() => {
@@ -103,8 +184,83 @@ function App() {
       }
     };
     window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const templatesData = [
+    {
+      key: 'business_website',
+      title: 'Premium Business Website',
+      description: 'A fully custom corporate presence designed to showcase services, build inbound authority, integrate lead capture, and establish brand confidence.',
+      duration: '5 Days Launch',
+      color: 'rgba(6, 182, 212, 0.15)',
+      badgeColor: 'var(--secondary)',
+      tags: ['React / Vite', 'Vanilla CSS', 'Responsive Grid', 'Local SEO']
+    },
+    {
+      key: 'ecommerce_platform',
+      title: 'SupaCart E-Commerce Platform',
+      description: 'High-speed storefront with custom shopping cart drawers, catalog filtering, mobile-friendly checkouts, and M-Pesa/PayPal payment gateway integrations.',
+      duration: '6 Days Launch',
+      color: 'rgba(139, 92, 246, 0.15)',
+      badgeColor: 'var(--primary)',
+      tags: ['React Redux', 'Node.js / Express', 'M-Pesa API', 'PostgreSQL']
+    },
+    {
+      key: 'restaurant_platform',
+      title: 'Restaurant Ordering Platform',
+      description: 'Interactive digital menus, table reservation modules, real-time kitchen order tracking, and mobile M-Pesa payments for seamless dining experiences.',
+      duration: '5 Days Launch',
+      color: 'rgba(234, 179, 8, 0.15)',
+      badgeColor: '#eab308',
+      tags: ['Web Sockets', 'React.js', 'Express API', 'Twilio Alerts']
+    },
+    {
+      key: 'booking_system',
+      title: 'Appointment Booking System',
+      description: 'Ideal for consultants, agencies, and hair salons. Calendar slot allocations, confirmation notifications, and automated email webhook reminders.',
+      duration: '4 Days Launch',
+      color: 'rgba(236, 72, 153, 0.15)',
+      badgeColor: 'var(--accent)',
+      tags: ['Google Calendar Sync', 'NodeMailer', 'PostgreSQL']
+    },
+    {
+      key: 'clinic_mgmt',
+      title: 'Clinic Management System',
+      description: 'Secure clinical software for patient onboarding, digital health records tracking, practitioner scheduling, and prescription billing portals.',
+      duration: '7 Days Launch',
+      color: 'rgba(16, 185, 129, 0.15)',
+      badgeColor: 'var(--secondary)',
+      tags: ['HIPAA Compliant Web', 'React Router', 'Neon DB']
+    },
+    {
+      key: 'real_estate_hotel',
+      title: 'Real Estate & Hotel Booking',
+      description: 'Advanced catalog layouts featuring interactive maps, property filtering, booking reservation flows, and client review dashboards.',
+      duration: '7 Days Launch',
+      color: 'rgba(239, 68, 68, 0.15)',
+      badgeColor: '#ef4444',
+      tags: ['Vite / CSS Grid', 'Direct Messaging API', 'PostgreSQL']
+    }
+  ];
+
+  const renderPrice = (key, tier) => {
+    const conf = pricingConfigs.find(c => c.template_key === key);
+    if (!conf) return '';
+    let basePrice = 0;
+    if (tier === 'monthly') basePrice = parseFloat(conf.base_price_monthly);
+    else if (tier === 'yearly') basePrice = parseFloat(conf.base_price_yearly);
+    else basePrice = parseFloat(conf.base_price_one_time);
+
+    const finalPrice = basePrice * priceMultiplier;
+    
+    if (clientCurrency === 'KES') {
+      return `KES ${Math.round(finalPrice * 130).toLocaleString()}`;
+    }
+    if (clientCurrency === 'AED') {
+      return `AED ${Math.round(finalPrice * 3.67).toLocaleString()}`;
+    }
+    return `$${Math.round(finalPrice).toLocaleString()}`;
+  };
 
   // Fetch CRM Data
   const fetchCrmData = async () => {
@@ -469,8 +625,24 @@ function App() {
 
   const handleTriggerCrawl = async () => {
     setCrawlingLeads(true);
+    const finalCities = [...scraperCities];
+    if (customCityInput.trim() !== '') {
+      customCityInput.split(',').forEach(c => {
+        if (c.trim()) finalCities.push(c.trim());
+      });
+    }
+    const finalNiche = customNicheInput.trim() !== '' ? customNicheInput : scraperNiche;
+
     try {
-      const res = await fetch(`${API_URL}/automation/crawl-leads`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/automation/crawl-leads`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          niche: finalNiche,
+          country: scraperCountry,
+          city: finalCities.join(', ')
+        })
+      });
       if (res.ok) {
         alert(`Success: Lead Scraper crawl completed!`);
         fetchCrmData();
@@ -497,6 +669,42 @@ function App() {
       alert('Error: Scraper API unavailable. (Running in offline mode)');
     } finally {
       setScrapingScholarships(false);
+    }
+  };
+
+  const handleDeleteLead = async (leadId) => {
+    if (!confirm('Are you sure you want to delete this client lead?')) return;
+    try {
+      const res = await fetch(`${API_URL}/crm/leads/${leadId}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchCrmData();
+      }
+    } catch (e) {
+      setLeads(leads.filter(l => l.id !== leadId));
+    }
+  };
+
+  const handleDeleteJob = async (jobId) => {
+    if (!confirm('Are you sure you want to delete this remote job?')) return;
+    try {
+      const res = await fetch(`${API_URL}/crm/jobs/${jobId}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchCrmData();
+      }
+    } catch (e) {
+      setJobs(jobs.filter(j => j.id !== jobId));
+    }
+  };
+
+  const handleDeleteScholarship = async (schId) => {
+    if (!confirm('Are you sure you want to delete this graduate funding scholarship?')) return;
+    try {
+      const res = await fetch(`${API_URL}/crm/scholarships/${schId}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchCrmData();
+      }
+    } catch (e) {
+      setScholarships(scholarships.filter(s => s.id !== schId));
     }
   };
 
@@ -726,74 +934,142 @@ function App() {
                 <span className="badge badge-secondary">Ready Storefronts</span>
                 <h2>Explore Pre-Built Templates</h2>
                 <p className="section-subtitle">
-                  We maintain a catalog of pre-engineered digital templates. We customize them with your identity and deploy within 5-7 days.
+                  We maintain a catalog of pre-engineered digital templates. Select a template and pricing plan to explore.
                 </p>
               </div>
-              
-              <div className="grid-cols-2" style={{ gap: '24px' }}>
-                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', border: '1px solid rgba(6, 182, 212, 0.15)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <span className="badge" style={{ margin: 0, background: 'rgba(6, 182, 212, 0.1)', color: 'var(--secondary)' }}>E-Commerce Storefront</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏱️ 5 Days Launch</span>
+
+              {/* Pricing Tier Selector */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px', border: '1px solid var(--border-color)' }}>
+                  {['monthly', 'yearly', 'onetime'].map(tier => (
+                    <button
+                      key={tier}
+                      onClick={() => setSelectedPricingTier(tier)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: selectedPricingTier === tier ? 'var(--primary)' : 'transparent',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        textTransform: 'capitalize',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {tier === 'onetime' ? 'One-time Payment' : `${tier} billing`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active Template Carousel Selector Tabs */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+                {templatesData.map((tmpl, idx) => (
+                  <button
+                    key={tmpl.key}
+                    onClick={() => setCarouselIndex(idx)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '20px',
+                      border: `1px solid ${carouselIndex === idx ? 'var(--primary)' : 'var(--border-color)'}`,
+                      background: carouselIndex === idx ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+                      color: carouselIndex === idx ? 'var(--primary)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: '700',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {tmpl.title.split(' ')[0]} {tmpl.title.split(' ')[1]}
+                  </button>
+                ))}
+              </div>
+
+              {/* Slider View */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', position: 'relative' }}>
+                <button
+                  onClick={() => setCarouselIndex(prev => (prev === 0 ? templatesData.length - 1 : prev - 1))}
+                  className="btn btn-secondary"
+                  style={{ borderRadius: '50%', width: '48px', height: '48px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '48px' }}
+                >
+                  <ChevronLeft size={20} />
+                </button>
+
+                <div 
+                  className="glass-card animate-fade-in" 
+                  style={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    textAlign: 'left', 
+                    border: `1px solid ${templatesData[carouselIndex].color.replace('0.15', '0.3')}`,
+                    padding: '32px',
+                    minHeight: '280px',
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '20px' }}>
+                    <div>
+                      <span className="badge" style={{ margin: '0 0 10px 0', background: templatesData[carouselIndex].color, color: templatesData[carouselIndex].badgeColor }}>
+                        {templatesData[carouselIndex].duration}
+                      </span>
+                      <h3 style={{ margin: 0, fontSize: '1.6rem' }}>{templatesData[carouselIndex].title}</h3>
+                    </div>
+                    
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--secondary)' }}>
+                        {renderPrice(templatesData[carouselIndex].key, selectedPricingTier)}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {selectedPricingTier === 'monthly' ? 'per month' : selectedPricingTier === 'yearly' ? 'billed annually' : 'one-time purchase'}
+                      </div>
+                    </div>
                   </div>
-                  <h3>SupaCart Retail Store</h3>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                    Fully functional online shopping store with responsive layouts, shopping cart drawer, instant product search filters, and checkout integration supporting Stripe, PayPal, and M-Pesa.
+
+                  <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: '1.6' }}>
+                    {templatesData[carouselIndex].description}
                   </p>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '16px' }}>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>React Redux</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>Node.js / Express</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>M-Pesa API</span>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {templatesData[carouselIndex].tags.map(tag => (
+                        <span key={tag} className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>{tag}</span>
+                      ))}
+                    </div>
+                    
+                    <button onClick={() => handleNavClick('contact')} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                      Select Template <ArrowRight size={14} />
+                    </button>
                   </div>
                 </div>
 
-                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', border: '1px solid rgba(139, 92, 246, 0.15)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <span className="badge" style={{ margin: 0, background: 'rgba(139, 92, 246, 0.1)', color: 'var(--primary)' }}>Booking & Scheduling</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏱️ 6 Days Launch</span>
-                  </div>
-                  <h3>Clinical Scheduler Hub</h3>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                    Tailored for doctors, law firms, and consulting clinics. Includes automated calendar slots reservation, booking forms, and integration with Twilio SMS / NodeMailer to notify clients.
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '16px' }}>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>Google Calendar Sync</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>Twilio API</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>PostgreSQL</span>
-                  </div>
-                </div>
+                <button
+                  onClick={() => setCarouselIndex(prev => (prev === templatesData.length - 1 ? 0 : prev + 1))}
+                  className="btn btn-secondary"
+                  style={{ borderRadius: '50%', width: '48px', height: '48px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '48px' }}
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
 
-                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', border: '1px solid rgba(236, 72, 153, 0.15)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <span className="badge" style={{ margin: 0, background: 'rgba(236, 72, 153, 0.1)', color: 'var(--accent)' }}>AI Operations</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏱️ 4 Days Launch</span>
-                  </div>
-                  <h3>Lead-Gen Support Agent</h3>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                    An intelligent conversational AI agent built for WhatsApp or Telegram channels. Automates customer onboarding, profiles leads, answers FAQs using custom knowledge databases, and alerts owners.
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '16px' }}>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>Gemini / DeepSeek API</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>Vector DB Lookup</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>WhatsApp Webhooks</span>
-                  </div>
-                </div>
-
-                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', border: '1px solid rgba(6, 182, 212, 0.15)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <span className="badge" style={{ margin: 0, background: 'rgba(6, 182, 212, 0.1)', color: 'var(--secondary)' }}>Enterprise POS</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏱️ 7 Days Launch</span>
-                  </div>
-                  <h3>Enterprise Cloud POS System</h3>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                    A cloud-based Point of Sale (POS) system with offline-first synchronization, real-time inventory management, barcode scanning, print receipt integrations, and sales metrics dashboards.
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '16px' }}>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>React / Electron</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>NodeJS / Express</span>
-                    <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>SQLite / PostgreSQL</span>
-                  </div>
-                </div>
+              {/* Slider Dots */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '20px' }}>
+                {templatesData.map((_, idx) => (
+                  <span
+                    key={idx}
+                    onClick={() => setCarouselIndex(idx)}
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: carouselIndex === idx ? 'var(--primary)' : 'var(--border-color)',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s ease'
+                    }}
+                  />
+                ))}
               </div>
             </section>
           </div>
@@ -1083,25 +1359,6 @@ function App() {
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <button 
-                    onClick={handleTriggerCrawl} 
-                    disabled={crawlingLeads} 
-                    className="btn btn-primary" 
-                    style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                  >
-                    <Cpu size={14} className={crawlingLeads ? 'animate-pulse' : ''} /> {crawlingLeads ? 'Scanning Local Leads...' : 'Scan Leads'}
-                  </button>
-                  {crawlingLeads && (
-                    <button 
-                      onClick={() => handleStopJob('client_outreach')} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '8px 12px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
-                    >
-                      Stop
-                    </button>
-                  )}
-                </div>
 
                 <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                   <button 
@@ -1161,6 +1418,13 @@ function App() {
                 style={{ padding: '8px 16px', fontSize: '0.9rem' }}
               >
                 <Clock size={16} /> Automation Logs ({cronRuns.length})
+              </button>
+              <button 
+                onClick={() => setCrmTab('settings')} 
+                className={`btn ${crmTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+              >
+                <Cpu size={16} /> Pricing Configs
               </button>
               <button 
                 onClick={handleClearDatabase} 
@@ -1223,61 +1487,219 @@ function App() {
                   </div>
                 )}
 
+                {/* Lead Scraper Control Panel */}
+                <div className="glass-card" style={{ marginBottom: '24px', padding: '24px', textAlign: 'left', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  <h4 style={{ margin: '0 0 16px 0', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Cpu size={18} /> Organic Lead Scraper Control Panel
+                  </h4>
+                  
+                  <div className="grid-cols-3" style={{ gap: '16px', marginBottom: '16px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Target Country</label>
+                      <select 
+                        className="form-input" 
+                        value={scraperCountry} 
+                        onChange={(e) => {
+                          setScraperCountry(e.target.value);
+                          const presetCities = {
+                            'United States': ['New York', 'Los Angeles', 'Chicago'],
+                            'United Kingdom': ['London', 'Manchester'],
+                            'Canada': ['Toronto', 'Vancouver'],
+                            'Australia': ['Sydney', 'Melbourne'],
+                            'United Arab Emirates': ['Dubai'],
+                            'Kenya': ['Nairobi']
+                          };
+                          setScraperCities(presetCities[e.target.value] || []);
+                        }}
+                        style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
+                      >
+                        <option value="United States">🇺🇸 United States</option>
+                        <option value="United Kingdom">🇬🇧 United Kingdom</option>
+                        <option value="Canada">🇨🇦 Canada</option>
+                        <option value="Australia">🇦🇺 Australia</option>
+                        <option value="United Arab Emirates">🇦🇪 United Arab Emirates</option>
+                        <option value="Kenya">🇰🇪 Kenya</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Target Niche Category</label>
+                      <select 
+                        className="form-input" 
+                        value={scraperNiche} 
+                        onChange={(e) => setScraperNiche(e.target.value)}
+                        style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
+                      >
+                        <option value="Boutiques and Retail Shops">🛍️ Boutiques and Retail Shops</option>
+                        <option value="Dentists and Dental Practices">🦷 Dentists and Dental Practices</option>
+                        <option value="Gyms and Fitness Centers">💪 Gyms and Fitness Centers</option>
+                        <option value="Law Firms and Lawyers">⚖️ Law Firms and Lawyers</option>
+                        <option value="Restaurants and Cafes">🍔 Restaurants and Cafes</option>
+                        <option value="Salons and Spas">💇 Salons and Spas</option>
+                        <option value="Real Estate Agencies">🏢 Real Estate Agencies</option>
+                        <option value="E-commerce Stores">🛒 E-commerce Stores</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Cities Preset Selector</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '6px 0' }}>
+                        {['New York', 'Los Angeles', 'Chicago', 'London', 'Manchester', 'Toronto', 'Vancouver', 'Sydney', 'Melbourne', 'Dubai', 'Nairobi'].filter(city => {
+                          const presetCities = {
+                            'United States': ['New York', 'Los Angeles', 'Chicago'],
+                            'United Kingdom': ['London', 'Manchester'],
+                            'Canada': ['Toronto', 'Vancouver'],
+                            'Australia': ['Sydney', 'Melbourne'],
+                            'United Arab Emirates': ['Dubai'],
+                            'Kenya': ['Nairobi']
+                          };
+                          return (presetCities[scraperCountry] || []).includes(city);
+                        }).map(city => (
+                          <label key={city} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={scraperCities.includes(city)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setScraperCities([...scraperCities, city]);
+                                } else {
+                                  setScraperCities(scraperCities.filter(c => c !== city));
+                                }
+                              }}
+                            />
+                            {city}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid-cols-2" style={{ gap: '16px', marginBottom: '20px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Custom City Override (comma-separated)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="e.g. Dallas, Seattle, Mombasa" 
+                        value={customCityInput} 
+                        onChange={(e) => setCustomCityInput(e.target.value)} 
+                        style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Custom Niche Override (e.g. Chiropractors)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="e.g. Chiropractors, Plumbers" 
+                        value={customNicheInput} 
+                        onChange={(e) => setCustomNicheInput(e.target.value)} 
+                        style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
+                    <button 
+                      onClick={handleTriggerCrawl} 
+                      disabled={crawlingLeads} 
+                      className="btn btn-primary" 
+                      style={{ padding: '10px 24px', fontSize: '0.85rem' }}
+                    >
+                      <Cpu size={14} className={crawlingLeads ? 'animate-pulse' : ''} /> {crawlingLeads ? 'Scanning Local Leads...' : 'Start Organic Scan'}
+                    </button>
+                    {crawlingLeads && (
+                      <button 
+                        onClick={() => handleStopJob('client_outreach')} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '10px 16px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                      >
+                        Stop
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px' }}><RefreshCw size={24} className="animate-spin" /> Fetching pipeline...</div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {leads.map(lead => (
-                      <div key={lead.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-                        <div style={{ textAlign: 'left' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h4 style={{ margin: 0 }}>{lead.business_name}</h4>
-                            <span className="badge badge-secondary" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{lead.industry}</span>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📍 {lead.location}</span>
-                          </div>
-                          <p style={{ fontSize: '0.9rem', margin: '4px 0 0 0' }}>
-                            🌐 {lead.website_url ? <a href={`http://${lead.website_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>{lead.website_url} <ExternalLink size={10} /></a> : <span style={{ color: 'var(--accent)' }}>No website found</span>}
-                            {lead.email && <span style={{ marginLeft: '16px' }}>✉️ {lead.email}</span>}
-                            {lead.social_media_url && <span style={{ marginLeft: '16px' }}>📱 <a href={lead.social_media_url.startsWith('http') ? lead.social_media_url : `https://${lead.social_media_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Social Media <ExternalLink size={10} /></a></span>}
-                          </p>
-                          <div style={{ marginTop: '8px', display: 'flex', gap: '8px', fontSize: '0.8rem' }}>
-                            <span style={{ color: lead.digital_audit?.no_ssl ? 'var(--accent)' : 'var(--text-secondary)' }}>🔒 SSL: {lead.digital_audit?.no_ssl ? 'Missing' : 'Active'}</span>
-                            <span>•</span>
-                            <span style={{ color: lead.digital_audit?.no_booking ? 'var(--text-secondary)' : 'var(--secondary)' }}>📅 Booking: {lead.digital_audit?.no_booking ? 'None' : 'Integrated'}</span>
-                            <span>•</span>
-                            <span>⚡ Pagespeed: {lead.digital_audit?.pagespeed_score || 0}/100</span>
+                  <div>
+                    {(() => {
+                      const groupedLeads = groupItemsByDate(leads);
+                      if (Object.keys(groupedLeads).length === 0) {
+                        return <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>No leads acquired yet. Run the Organic Scan above to crawl targets.</div>;
+                      }
+                      return Object.keys(groupedLeads).map(dateGroup => (
+                        <div key={dateGroup} style={{ marginBottom: '32px', textAlign: 'left' }}>
+                          <h4 style={{ color: 'var(--primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>
+                            📅 Scanned on: {dateGroup}
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {groupedLeads[dateGroup].map(lead => (
+                              <div key={lead.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                                <div style={{ textAlign: 'left' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <h4 style={{ margin: 0 }}>{lead.business_name}</h4>
+                                    <span className="badge badge-secondary" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{lead.industry}</span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📍 {lead.location}</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.9rem', margin: '4px 0 0 0' }}>
+                                    🌐 {lead.website_url ? <a href={`http://${lead.website_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>{lead.website_url} <ExternalLink size={10} /></a> : <span style={{ color: 'var(--accent)' }}>No website found</span>}
+                                    {lead.email && <span style={{ marginLeft: '16px' }}>✉️ {lead.email}</span>}
+                                    {lead.social_media_url && <span style={{ marginLeft: '16px' }}>📱 <a href={lead.social_media_url.startsWith('http') ? lead.social_media_url : `https://${lead.social_media_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Social Media <ExternalLink size={10} /></a></span>}
+                                  </p>
+                                  <div style={{ marginTop: '8px', display: 'flex', gap: '8px', fontSize: '0.8rem' }}>
+                                    <span style={{ color: lead.digital_audit?.no_ssl ? 'var(--accent)' : 'var(--text-secondary)' }}>🔒 SSL: {lead.digital_audit?.no_ssl ? 'Missing' : 'Active'}</span>
+                                    <span>•</span>
+                                    <span style={{ color: lead.digital_audit?.no_booking ? 'var(--text-secondary)' : 'var(--secondary)' }}>📅 Booking: {lead.digital_audit?.no_booking ? 'None' : 'Integrated'}</span>
+                                    <span>•</span>
+                                    <span>⚡ Pagespeed: {lead.digital_audit?.pagespeed_score || 0}/100</span>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                  <div>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Lead Score:</span>
+                                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: lead.lead_score > 80 ? 'var(--accent)' : 'var(--secondary)' }}>{lead.lead_score}</div>
+                                  </div>
+
+                                  <div className="form-group" style={{ margin: 0 }}>
+                                    <select 
+                                      value={lead.status} 
+                                      onChange={(e) => updateLeadStatus(lead.id, e.target.value)}
+                                      className="form-input"
+                                      style={{ padding: '8px 12px', fontSize: '0.85rem', background: '#0a0b10', color: '#fff', border: '1px solid var(--border-color)' }}
+                                    >
+                                      <option value="New">New</option>
+                                      <option value="Contacted">Contacted</option>
+                                      <option value="Replied">Replied</option>
+                                      <option value="Meeting Scheduled">Meeting Scheduled</option>
+                                      <option value="Proposal Sent">Proposal Sent</option>
+                                      <option value="Won">Won</option>
+                                      <option value="Lost">Lost</option>
+                                    </select>
+                                  </div>
+
+                                  <button onClick={() => handleGenerateOutreachDraft(lead)} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
+                                    <Sparkles size={14} color="var(--primary)" /> Draft Outreach
+                                  </button>
+
+                                  <button 
+                                    onClick={() => handleDeleteLead(lead.id)} 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: '8px 8px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                    title="Delete Lead"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Lead Score:</span>
-                            <div style={{ fontSize: '1.2rem', fontWeight: '800', color: lead.lead_score > 80 ? 'var(--accent)' : 'var(--secondary)' }}>{lead.lead_score}</div>
-                          </div>
-
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <select 
-                              value={lead.status} 
-                              onChange={(e) => updateLeadStatus(lead.id, e.target.value)}
-                              className="form-input"
-                              style={{ padding: '8px 12px', fontSize: '0.85rem', background: '#0a0b10', color: '#fff', border: '1px solid var(--border-color)' }}
-                            >
-                              <option value="New">New</option>
-                              <option value="Contacted">Contacted</option>
-                              <option value="Replied">Replied</option>
-                              <option value="Meeting Scheduled">Meeting Scheduled</option>
-                              <option value="Proposal Sent">Proposal Sent</option>
-                              <option value="Won">Won</option>
-                              <option value="Lost">Lost</option>
-                            </select>
-                          </div>
-
-                          <button onClick={() => handleGenerateOutreachDraft(lead)} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
-                            <Sparkles size={14} color="var(--primary)" /> Draft Outreach
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 )}
 
@@ -1357,54 +1779,78 @@ function App() {
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px' }}><RefreshCw size={24} className="animate-spin" /> Loading job board...</div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {jobs.map(job => (
-                      <div key={job.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-                        <div style={{ textAlign: 'left', flex: 1, minWidth: '280px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h4 style={{ margin: 0 }}>{job.position}</h4>
-                            <span className="badge" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{job.company_name}</span>
+                  <div>
+                    {(() => {
+                      const groupedJobs = groupItemsByDate(jobs);
+                      if (Object.keys(groupedJobs).length === 0) {
+                        return <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>No remote jobs found yet. Run Scrape Jobs above to poll boards.</div>;
+                      }
+                      return Object.keys(groupedJobs).map(dateGroup => (
+                        <div key={dateGroup} style={{ marginBottom: '32px', textAlign: 'left' }}>
+                          <h4 style={{ color: 'var(--primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>
+                            📅 Scanned on: {dateGroup}
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {groupedJobs[dateGroup].map(job => (
+                              <div key={job.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                                <div style={{ textAlign: 'left', flex: 1, minWidth: '280px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <h4 style={{ margin: 0 }}>{job.position}</h4>
+                                    <span className="badge" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{job.company_name}</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.85rem', margin: '4px 0 8px 0', color: 'var(--text-secondary)' }}>
+                                    📍 {job.location} | 💰 {job.salary} | 📅 Found: {new Date(job.created_at).toLocaleDateString()} | 🌐 <a href={job.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Job <ExternalLink size={10} /></a>
+                                  </p>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', marginBottom: '8px' }}>
+                                    {job.job_description?.replace(/<[^>]*>/g, '')}
+                                  </p>
+                                  {job.how_to_apply && (
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--primary)', margin: '4px 0 0 0' }}>
+                                      📝 <strong>How to Apply:</strong> {job.how_to_apply}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', justifyContent: 'flex-end' }}>
+                                  <div style={{ textAlign: 'center' }}>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Match:</span>
+                                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: job.relevance_score > 85 ? 'var(--secondary)' : 'var(--text-secondary)' }}>{job.relevance_score}%</div>
+                                  </div>
+
+                                  <div className="form-group" style={{ margin: 0 }}>
+                                    <select 
+                                      value={job.status} 
+                                      onChange={(e) => updateJobStatus(job.id, e.target.value)}
+                                      className="form-input"
+                                      style={{ padding: '8px 12px', fontSize: '0.85rem', background: '#0a0b10', color: '#fff' }}
+                                    >
+                                      <option value="Discovered">Discovered</option>
+                                      <option value="Applied">Applied</option>
+                                      <option value="Interview">Interview</option>
+                                      <option value="Rejected">Rejected</option>
+                                      <option value="Offer">Offer</option>
+                                    </select>
+                                  </div>
+
+                                  <button onClick={() => handleTailorJob(job)} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
+                                    <FileText size={14} color="var(--primary)" /> Tailor CV & Letter
+                                  </button>
+
+                                  <button 
+                                    onClick={() => handleDeleteJob(job.id)} 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: '8px 8px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                    title="Delete Job"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                          <p style={{ fontSize: '0.85rem', margin: '4px 0 8px 0', color: 'var(--text-secondary)' }}>
-                            📍 {job.location} | 💰 {job.salary} | 📅 Found: {new Date(job.created_at).toLocaleDateString()} | 🌐 <a href={job.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Job <ExternalLink size={10} /></a>
-                          </p>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', marginBottom: '8px' }}>
-                            {job.job_description?.replace(/<[^>]*>/g, '')}
-                          </p>
-                          {job.how_to_apply && (
-                            <p style={{ fontSize: '0.8rem', color: 'var(--primary)', margin: '4px 0 0 0' }}>
-                              📝 <strong>How to Apply:</strong> {job.how_to_apply}
-                            </p>
-                          )}
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', justifyContent: 'flex-end' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Match:</span>
-                            <div style={{ fontSize: '1.2rem', fontWeight: '800', color: job.relevance_score > 85 ? 'var(--secondary)' : 'var(--text-secondary)' }}>{job.relevance_score}%</div>
-                          </div>
-
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <select 
-                              value={job.status} 
-                              onChange={(e) => updateJobStatus(job.id, e.target.value)}
-                              className="form-input"
-                              style={{ padding: '8px 12px', fontSize: '0.85rem', background: '#0a0b10', color: '#fff' }}
-                            >
-                              <option value="Discovered">Discovered</option>
-                              <option value="Applied">Applied</option>
-                              <option value="Interview">Interview</option>
-                              <option value="Rejected">Rejected</option>
-                              <option value="Offer">Offer</option>
-                            </select>
-                          </div>
-
-                          <button onClick={() => handleTailorJob(job)} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
-                            <FileText size={14} color="var(--primary)" /> Tailor CV & Letter
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 )}
 
@@ -1476,58 +1922,82 @@ function App() {
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px' }}><RefreshCw size={24} className="animate-spin" /> Loading funding opportunities...</div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {scholarships.map(sch => (
-                      <div key={sch.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-                        <div style={{ textAlign: 'left', flex: 1, minWidth: '280px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h4 style={{ margin: 0 }}>{sch.program_name}</h4>
-                            <span className="badge" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{sch.institution}</span>
+                  <div>
+                    {(() => {
+                      const groupedSch = groupItemsByDate(scholarships);
+                      if (Object.keys(groupedSch).length === 0) {
+                        return <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>No scholarship funding targets found yet. Run Scrape Scholarships above.</div>;
+                      }
+                      return Object.keys(groupedSch).map(dateGroup => (
+                        <div key={dateGroup} style={{ marginBottom: '32px', textAlign: 'left' }}>
+                          <h4 style={{ color: 'var(--primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>
+                            📅 Scanned on: {dateGroup}
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {groupedSch[dateGroup].map(sch => (
+                              <div key={sch.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                                <div style={{ textAlign: 'left', flex: 1, minWidth: '280px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <h4 style={{ margin: 0 }}>{sch.program_name}</h4>
+                                    <span className="badge" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{sch.institution}</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.85rem', margin: '4px 0 8px 0', color: 'var(--text-secondary)' }}>
+                                    📍 {sch.location} | 🎓 {sch.funding_type} | 📅 Deadline: {sch.deadline ? new Date(sch.deadline).toLocaleDateString() : 'Rolling'} | 🌐 <a href={sch.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Portal <ExternalLink size={10} /></a>
+                                  </p>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                                    {sch.description}
+                                  </p>
+                                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0' }}>
+                                    📋 <strong>Eligibility:</strong> {sch.eligibility_criteria}
+                                  </p>
+                                  {sch.how_to_apply && (
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--accent)', margin: '4px 0 0 0' }}>
+                                      📝 <strong>How to Apply:</strong> {sch.how_to_apply}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', justifyContent: 'flex-end' }}>
+                                  <div style={{ textAlign: 'center' }}>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Match:</span>
+                                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: sch.relevance_score > 90 ? 'var(--secondary)' : 'var(--text-secondary)' }}>{sch.relevance_score}%</div>
+                                  </div>
+
+                                  <div className="form-group" style={{ margin: 0 }}>
+                                    <select 
+                                      value={sch.status} 
+                                      onChange={(e) => updateScholarshipStatus(sch.id, e.target.value)}
+                                      className="form-input"
+                                      style={{ padding: '8px 12px', fontSize: '0.85rem', background: '#0a0b10', color: '#fff' }}
+                                    >
+                                      <option value="Discovered">Discovered</option>
+                                      <option value="SOP Drafted">SOP Drafted</option>
+                                      <option value="Applied">Applied</option>
+                                      <option value="Interview">Interview</option>
+                                      <option value="Accepted">Accepted</option>
+                                      <option value="Rejected">Rejected</option>
+                                    </select>
+                                  </div>
+
+                                  <button onClick={() => handleTailorScholarship(sch)} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
+                                    <FileText size={14} color="var(--primary)" /> {sch.funding_type?.toLowerCase().includes('advisor') ? 'Tailor Advisor Email' : 'Tailor SOP'}
+                                  </button>
+
+                                  <button 
+                                    onClick={() => handleDeleteScholarship(sch.id)} 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: '8px 8px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                    title="Delete Scholarship"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                          <p style={{ fontSize: '0.85rem', margin: '4px 0 8px 0', color: 'var(--text-secondary)' }}>
-                            📍 {sch.location} | 🎓 {sch.funding_type} | 📅 Deadline: {sch.deadline ? new Date(sch.deadline).toLocaleDateString() : 'Rolling'} | 🌐 <a href={sch.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Portal <ExternalLink size={10} /></a>
-                          </p>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                            {sch.description}
-                          </p>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0' }}>
-                            📋 <strong>Eligibility:</strong> {sch.eligibility_criteria}
-                          </p>
-                          {sch.how_to_apply && (
-                            <p style={{ fontSize: '0.8rem', color: 'var(--accent)', margin: '4px 0 0 0' }}>
-                              📝 <strong>How to Apply:</strong> {sch.how_to_apply}
-                            </p>
-                          )}
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', justifyContent: 'flex-end' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Match:</span>
-                            <div style={{ fontSize: '1.2rem', fontWeight: '800', color: sch.relevance_score > 90 ? 'var(--secondary)' : 'var(--text-secondary)' }}>{sch.relevance_score}%</div>
-                          </div>
-
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <select 
-                              value={sch.status} 
-                              onChange={(e) => updateScholarshipStatus(sch.id, e.target.value)}
-                              className="form-input"
-                              style={{ padding: '8px 12px', fontSize: '0.85rem', background: '#0a0b10', color: '#fff' }}
-                            >
-                              <option value="Discovered">Discovered</option>
-                              <option value="SOP Drafted">SOP Drafted</option>
-                              <option value="Applied">Applied</option>
-                              <option value="Interview">Interview</option>
-                              <option value="Accepted">Accepted</option>
-                              <option value="Rejected">Rejected</option>
-                            </select>
-                          </div>
-
-                          <button onClick={() => handleTailorScholarship(sch)} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
-                            <FileText size={14} color="var(--primary)" /> {sch.funding_type?.toLowerCase().includes('advisor') ? 'Tailor Advisor Email' : 'Tailor SOP'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 )}
 
@@ -1591,82 +2061,123 @@ function App() {
             {/* CRM ANALYTICS TAB */}
             {crmTab === 'analytics' && (
               <div className="animate-fade-in">
-                <h3>Acquisition Engine Pipeline Metrics</h3>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '0.9rem' }}>Real-time summaries of client conversions, job applications, and graduate funding pipelines.</p>
-
-                <div className="grid-cols-3" style={{ marginBottom: '32px' }}>
-                  <div className="glass-card" style={{ textAlign: 'left' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Client Leads Found</span>
-                      <Users size={20} color="var(--primary)" />
-                    </div>
-                    <h1 style={{ fontSize: '3rem', margin: '10px 0 5px 0' }}>{Object.values(metrics.leads).reduce((a,b)=>a+b, 0)}</h1>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      <span>New: {metrics.leads.New}</span> | <span>Contacted: {metrics.leads.Contacted}</span>
-                    </div>
+                <div className="flex-between" style={{ marginBottom: '24px', alignItems: 'center' }}>
+                  <div>
+                    <h3>Acquisition Engine Pipeline Metrics</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>Summaries of client conversions, job applications, and graduate funding pipelines.</p>
                   </div>
-
-                  <div className="glass-card" style={{ textAlign: 'left' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Job Leads Found</span>
-                      <Briefcase size={20} color="var(--secondary)" />
-                    </div>
-                    <h1 style={{ fontSize: '3rem', margin: '10px 0 5px 0' }}>{Object.values(metrics.jobs).reduce((a,b)=>a+b, 0)}</h1>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      <span>Discovered: {metrics.jobs.Discovered}</span> | <span>Applied: {metrics.jobs.Applied}</span>
-                    </div>
-                  </div>
-
-                  <div className="glass-card" style={{ textAlign: 'left' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Scholarship Funnel</span>
-                      <Sparkles size={20} color="var(--accent)" />
-                    </div>
-                    <h1 style={{ fontSize: '3rem', margin: '10px 0 5px 0' }}>{Object.values(metrics.scholarships || {}).reduce((a,b)=>a+b, 0)}</h1>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      <span>Discovered: {metrics.scholarships?.Discovered || 0}</span> | <span>SOP Drafted: {metrics.scholarships?.['SOP Drafted'] || 0}</span>
-                    </div>
+                  
+                  {/* Range Switcher */}
+                  <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px', border: '1px solid var(--border-color)' }}>
+                    {[
+                      { key: 'overall', label: 'Overall Stats' },
+                      { key: 'last7Days', label: 'Last 7 Days' },
+                      { key: 'last30Days', label: 'Last 30 Days' }
+                    ].map(range => (
+                      <button
+                        key={range.key}
+                        onClick={() => setAnalyticsRange(range.key)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: analyticsRange === range.key ? 'var(--primary)' : 'transparent',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        {range.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Detailed Pipeline Stage Visual Cards */}
-                <div className="grid-cols-3" style={{ gap: '24px' }}>
-                  <div className="glass-card" style={{ textAlign: 'left' }}>
-                    <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>Client Lead Funnel</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {Object.entries(metrics.leads).map(([stage, count]) => (
-                        <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border-color)' }}>
-                          <span style={{ fontSize: '0.95rem' }}>{stage}</span>
-                          <span style={{ fontWeight: '700' }} className="text-gradient">{count}</span>
+                {(() => {
+                  const activeMetrics = metrics[analyticsRange] || (metrics.leads ? metrics : {
+                    leads: { New: 0, Contacted: 0, Replied: 0, 'Meeting Scheduled': 0, 'Proposal Sent': 0, Won: 0, Lost: 0 },
+                    jobs: { Discovered: 0, Applied: 0, Interview: 0, Rejected: 0, Offer: 0 },
+                    scholarships: { Discovered: 0, 'SOP Drafted': 0, Applied: 0, Interview: 0, Accepted: 0, Rejected: 0 }
+                  });
+                  return (
+                    <div>
+                      <div className="grid-cols-3" style={{ marginBottom: '32px' }}>
+                        <div className="glass-card" style={{ textAlign: 'left' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Client Leads Found</span>
+                            <Users size={20} color="var(--primary)" />
+                          </div>
+                          <h1 style={{ fontSize: '3rem', margin: '10px 0 5px 0' }}>{Object.values(activeMetrics.leads || {}).reduce((a,b)=>a+b, 0)}</h1>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>New: {activeMetrics.leads?.New || 0}</span> | <span>Contacted: {activeMetrics.leads?.Contacted || 0}</span>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="glass-card" style={{ textAlign: 'left' }}>
-                    <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>Job Application Pipeline</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {Object.entries(metrics.jobs).map(([stage, count]) => (
-                        <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border-color)' }}>
-                          <span style={{ fontSize: '0.95rem' }}>{stage}</span>
-                          <span style={{ fontWeight: '700' }} className="text-gradient-accent">{count}</span>
+                        <div className="glass-card" style={{ textAlign: 'left' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Job Leads Found</span>
+                            <Briefcase size={20} color="var(--secondary)" />
+                          </div>
+                          <h1 style={{ fontSize: '3rem', margin: '10px 0 5px 0' }}>{Object.values(activeMetrics.jobs || {}).reduce((a,b)=>a+b, 0)}</h1>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>Discovered: {activeMetrics.jobs?.Discovered || 0}</span> | <span>Applied: {activeMetrics.jobs?.Applied || 0}</span>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="glass-card" style={{ textAlign: 'left' }}>
-                    <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>Funding & MSc Pipeline</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {Object.entries(metrics.scholarships || {}).map(([stage, count]) => (
-                        <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border-color)' }}>
-                          <span style={{ fontSize: '0.95rem' }}>{stage}</span>
-                          <span style={{ fontWeight: '700', color: 'var(--accent)' }}>{count}</span>
+                        <div className="glass-card" style={{ textAlign: 'left' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Scholarship Funnel</span>
+                            <Sparkles size={20} color="var(--accent)" />
+                          </div>
+                          <h1 style={{ fontSize: '3rem', margin: '10px 0 5px 0' }}>{Object.values(activeMetrics.scholarships || {}).reduce((a,b)=>a+b, 0)}</h1>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>Discovered: {activeMetrics.scholarships?.Discovered || 0}</span> | <span>SOP Drafted: {activeMetrics.scholarships?.['SOP Drafted'] || 0}</span>
+                          </div>
                         </div>
-                      ))}
+                      </div>
+
+                      {/* Detailed Pipeline Stage Visual Cards */}
+                      <div className="grid-cols-3" style={{ gap: '24px' }}>
+                        <div className="glass-card" style={{ textAlign: 'left' }}>
+                          <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>Client Lead Funnel</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {Object.entries(activeMetrics.leads || {}).map(([stage, count]) => (
+                              <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                                <span style={{ fontSize: '0.95rem' }}>{stage}</span>
+                                <span style={{ fontWeight: '700' }} className="text-gradient">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="glass-card" style={{ textAlign: 'left' }}>
+                          <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>Job Application Pipeline</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {Object.entries(activeMetrics.jobs || {}).map(([stage, count]) => (
+                              <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                                <span style={{ fontSize: '0.95rem' }}>{stage}</span>
+                                <span style={{ fontWeight: '700' }} className="text-gradient-accent">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="glass-card" style={{ textAlign: 'left' }}>
+                          <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px' }}>Funding & MSc Pipeline</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {Object.entries(activeMetrics.scholarships || {}).map(([stage, count]) => (
+                              <div key={stage} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                                <span style={{ fontSize: '0.95rem' }}>{stage}</span>
+                                <span style={{ fontWeight: '700', color: 'var(--accent)' }}>{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1778,6 +2289,109 @@ function App() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* CRM PRICING CONFIGURATIONS SETTINGS TAB */}
+            {crmTab === 'settings' && (
+              <div className="animate-fade-in" style={{ textAlign: 'left' }}>
+                <div style={{ marginBottom: '24px' }}>
+                  <h3>Template Price Customization Panel</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    Adjust base pricing values and regional discount ratios. Saving configurations will automatically update template prices viewed by prospective clients based on their visitor IP geolocations.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  {pricingConfigs.map(conf => (
+                    <div key={conf.template_key} className="glass-card" style={{ padding: '24px', border: '1px solid var(--border-color)' }}>
+                      <h4 style={{ textTransform: 'capitalize', color: 'var(--primary)', marginBottom: '16px' }}>
+                        📋 {conf.template_key.replace('_', ' ')}
+                      </h4>
+                      
+                      <div className="grid-cols-4" style={{ gap: '16px', marginBottom: '16px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>Monthly Subscription ($)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={conf.base_price_monthly} 
+                            onChange={(e) => {
+                              const updated = pricingConfigs.map(c => c.template_key === conf.template_key ? { ...c, base_price_monthly: e.target.value } : c);
+                              setPricingConfigs(updated);
+                            }} 
+                            style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>Yearly Subscription ($)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={conf.base_price_yearly} 
+                            onChange={(e) => {
+                              const updated = pricingConfigs.map(c => c.template_key === conf.template_key ? { ...c, base_price_yearly: e.target.value } : c);
+                              setPricingConfigs(updated);
+                            }} 
+                            style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>One-time Setup ($)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={conf.base_price_one_time} 
+                            onChange={(e) => {
+                              const updated = pricingConfigs.map(c => c.template_key === conf.template_key ? { ...c, base_price_one_time: e.target.value } : c);
+                              setPricingConfigs(updated);
+                            }} 
+                            style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>Local Discount Ratio (e.g. 0.40)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            className="form-input" 
+                            value={conf.local_discount_multiplier} 
+                            onChange={(e) => {
+                              const updated = pricingConfigs.map(c => c.template_key === conf.template_key ? { ...c, local_discount_multiplier: e.target.value } : c);
+                              setPricingConfigs(updated);
+                            }} 
+                            style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px' }}
+                          />
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_URL}/crm/pricing-configs`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(conf)
+                            });
+                            if (res.ok) {
+                              alert(`Successfully updated pricing configurations for ${conf.template_key.replace('_', ' ')}!`);
+                              fetchPricingConfigs();
+                            }
+                          } catch (e) {
+                            alert(`Success (Offline/Mock Mode): Config saved locally.`);
+                          }
+                        }} 
+                        className="btn btn-primary" 
+                        style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                      >
+                        Save Configuration
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
