@@ -1,15 +1,15 @@
 const db = require('../db');
 const jobTracker = require('./jobTracker');
-const { computeScholarshipRelevance } = require('./gemini');
+const { computeScholarshipRelevance, searchRealScholarshipsWithAI } = require('./gemini');
 
 /**
- * Simulates scraping/pulling scholarship opportunities from Erasmus Mundus, DAAD, 
- * and direct CS advisor RA funding portals, evaluating them against the user profile.
+ * Scrapes/pulls real-world scholarship opportunities from Erasmus Mundus, DAAD, 
+ * and direct CS advisor RA funding portals using live Google Search grounding.
  */
 async function scrapeScholarships() {
   console.log('⏳ Scholarship Scraper: Scanning postgraduate scholarship portals and research lab directories...');
   
-  // High-value computing-related Master scholarships and Advisor RA openings
+  // High-value seed computing-related Master scholarships and Advisor RA openings as a fallback
   const seedOpportunities = [
     {
       program_name: 'Erasmus Mundus Joint Master in Software Engineering (EMSE)',
@@ -68,11 +68,30 @@ async function scrapeScholarships() {
     }
   ];
 
+  let activeOpportunities = [];
+  const logOutputLines = [];
+  logOutputLines.push(`[${new Date().toISOString()}] 🚀 Starting Scholarship Scraper Pipeline...`);
+
+  try {
+    logOutputLines.push(`[Task 1] Querying active fully-funded CS MSc scholarships & direct advisor openings via Google Grounding...`);
+    const liveOpps = await searchRealScholarshipsWithAI();
+    if (liveOpps && liveOpps.length > 0) {
+      logOutputLines.push(`[Task 1] Success: Retrieved ${liveOpps.length} real active scholarship opportunities from Google.`);
+      activeOpportunities = liveOpps;
+    } else {
+      logOutputLines.push(`[Task 1] Note: Google Search Grounding returned no results. Falling back to local high-value seed database.`);
+      activeOpportunities = seedOpportunities;
+    }
+  } catch (err) {
+    logOutputLines.push(`[Task 1] Failed to query live database: ${err.message}. Falling back to local seed database.`);
+    activeOpportunities = seedOpportunities;
+  }
+
   let addedOpportunities = 0;
 
-  for (const opp of seedOpportunities) {
+  for (const opp of activeOpportunities) {
     if (!jobTracker.isJobActive('scholarship_scraper')) {
-      console.log('⚠️ [Scholarship Scraper] Pipeline terminated by user request.');
+      logOutputLines.push('⚠️ [Scholarship Scraper] Pipeline terminated by user request.');
       break;
     }
     // 1. Calculate relevance matching score using Gemini
@@ -115,7 +134,8 @@ async function scrapeScholarships() {
   }
 
   console.log(`✅ Scholarship Scraper: Ingested ${addedOpportunities} CS graduate funding opportunities.`);
-
+  logOutputLines.push(`[Scholarship Scraper] Ingested ${addedOpportunities} funding opportunities.`);
+  
   // Write to DB logs
   try {
     const tasksExecuted = [{
@@ -123,11 +143,11 @@ async function scrapeScholarships() {
       status: 'Success',
       details: `Discovered and ingested/updated ${addedOpportunities} graduate scholarship opportunities.`
     }];
-    const logOutput = `[${new Date().toISOString()}] 🚀 Starting Scholarship Scraper Pipeline...\nIngested ${addedOpportunities} funding opportunities.`;
+    const logOutput = logOutputLines.join('\n');
     await db.query(`
       INSERT INTO cron_runs (run_time, pipeline_type, status, tasks_executed, log_output)
       VALUES (CURRENT_TIMESTAMP, 'scholarship_scraper', 'Success', $1, $2)
-    `, [JSON.stringify(tasksExecuted), logOutput]);
+    `, [status, JSON.stringify(tasksExecuted), logOutput]);
   } catch (dbErr) {
     console.error('Failed to log scholarship_scraper cron_run to DB:', dbErr.message);
   }

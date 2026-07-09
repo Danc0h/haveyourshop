@@ -1,6 +1,6 @@
 const db = require('../db');
 const jobTracker = require('./jobTracker');
-const { computeJobRelevance } = require('./gemini');
+const { computeJobRelevance, searchRealBusinessesWithAI } = require('./gemini');
 const { scrapeRemotive } = require('./jobScraper');
 const { calculateLeadScore } = require('./leadGenerator');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -238,17 +238,10 @@ async function runJobScraperPipeline() {
       status = 'Warning';
     } else {
       logLines.push(`[Task 1] Checking Remotive Remote developer board...`);
-      const remotiveJobs = await scrapeRemotive();
+      const remotiveResult = await scrapeRemotive();
       let remotiveAdded = 0;
-      
-      for (const job of remotiveJobs) {
-        const exists = await jobExists(job.application_url);
-        if (!exists) {
-          await db.query(`
-            INSERT INTO job_listings (company_name, position, salary, location, application_url, job_description, relevance_score, status, how_to_apply)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Discovered', $8)
-          `, [job.company_name, job.position, job.salary, job.location, job.application_url, job.job_description, job.relevance_score, 'Submit your CV and cover letter via the application link.']);
-          
+      if (remotiveResult && remotiveResult.success && Array.isArray(remotiveResult.jobs)) {
+        for (const job of remotiveResult.jobs) {
           newlyDiscoveredJobs.push(job);
           remotiveAdded++;
         }
@@ -313,9 +306,7 @@ async function runJobScraperPipeline() {
       const feeds = [
         { name: 'We Work Remotely', url: 'https://weworkremotely.com/categories/remote-programming-jobs.rss' },
         { name: 'Remote.co', url: 'https://remote.co/remote-jobs/developer/feed/' },
-        { name: 'Working Nomads', url: 'https://www.workingnomads.com/jobs/feed' },
-        { name: 'Upwork RSS', url: 'https://www.upwork.com/ab/feed/jobs/rss?q=software+development' },
-        { name: 'Fiverr Requests', url: 'https://www.fiverr.com/feed/projects/rss' }
+        { name: 'Working Nomads', url: 'https://www.workingnomads.com/jobs/feed' }
       ];
       
       let rssIngested = 0;
@@ -537,33 +528,71 @@ async function runClientOutreachPipeline(customNiche, customCountry, customCity)
     logLines.push(`\n--- Crawling City: ${city} ---`);
 
     try {
-      // Fetch organic search leads via DuckDuckGo HTML scraper
-      const realResults = await searchRealDuckDuckGoLeads(targetNiche, city);
+      // Fetch organic search leads via Google Search Grounding with Gemini, falling back to DuckDuckGo
+      let realResults = [];
+      try {
+        realResults = await searchRealBusinessesWithAI(targetNiche, city, customCountry || 'United States');
+        if (realResults && realResults.length > 0) {
+          logLines.push(`[AI Search] Discovered ${realResults.length} real listings for ${targetNiche} in ${city} via Google Grounding.`);
+        }
+      } catch (aiErr) {
+        logLines.push(`[AI Search] Note: AI Search Grounding fell back due to error: ${aiErr.message}`);
+      }
+
+      if (!realResults || realResults.length === 0) {
+        logLines.push(`[Scraper] Falling back to DuckDuckGo organic crawler...`);
+        realResults = await searchRealDuckDuckGoLeads(targetNiche, city);
+      }
       
-      if (realResults.length === 0) {
-        logLines.push(`[Scraper] Note: No organic websites found for ${targetNiche} in ${city}.`);
+      if (!realResults || realResults.length === 0) {
+        logLines.push(`[Scraper] Note: No organic websites or listings found for ${targetNiche} in ${city}.`);
         continue;
       }
 
       for (const res of realResults) {
         if (!jobTracker.isJobActive('client_outreach')) break;
         
-        logLines.push(`[Audit] Conducting digital presence audit on: ${res.website_url}`);
-        // Run a real-time HTTP fetch audit to check SSL, booking slots, and latency page speeds
-        const auditData = await auditRealWebsite(res.website_url);
+        let auditData = {
+          audit: {
+            no_website: true,
+            no_booking: true,
+            no_ssl: true,
+            outdated_tech: true,
+            pagespeed_score: 0
+          },
+          email: res.email || null,
+          phone: res.phone || null,
+          social_media_url: res.social_media_url || null
+        };
+
+        const hasWebsite = res.website_url && 
+                           res.website_url.trim() !== '' && 
+                           !res.website_url.toLowerCase().includes('yelp.com') && 
+                           !res.website_url.toLowerCase().includes('yellowpages.com');
+
+        if (hasWebsite) {
+          logLines.push(`[Audit] Conducting digital presence audit on website: ${res.website_url}`);
+          const fetchedAudit = await auditRealWebsite(res.website_url);
+          auditData.audit = fetchedAudit.audit;
+          if (fetchedAudit.email) auditData.email = fetchedAudit.email;
+          if (fetchedAudit.phone) auditData.phone = fetchedAudit.phone;
+          if (fetchedAudit.social_media_url) auditData.social_media_url = fetchedAudit.social_media_url;
+        } else {
+          logLines.push(`[Audit] Listing "${res.business_name}" has no website. Deficiencies marked (requires web development).`);
+        }
         
         const lead = {
           business_name: res.business_name,
           industry: targetNiche,
           location: city,
-          website_url: res.website_url,
+          website_url: hasWebsite ? res.website_url : '',
           email: auditData.email,
           phone: auditData.phone,
           social_media_url: auditData.social_media_url,
           audit: auditData.audit
         };
 
-        await ingestLead(lead, 'DuckDuckGo Scraper');
+        await ingestLead(lead, 'Organic Lead Scraper');
       }
     } catch (err) {
       logLines.push(`[Crawler] Search failed for ${city}: ${err.message}`);
@@ -571,9 +600,9 @@ async function runClientOutreachPipeline(customNiche, customCountry, customCity)
   }
 
   tasksExecuted.push({
-    name: 'DuckDuckGo Lead Crawl',
+    name: 'Organic Lead Scraper',
     status: status,
-    details: `Scanned cities: ${targetCities.join(', ')}. Ingested ${newlyDiscoveredLeads.length} real leads.`
+    details: `Scanned cities: ${targetCities.join(', ')}. Ingested ${newlyDiscoveredLeads.length} real client leads.`
   });
 
   logLines.push(`[${new Date().toISOString()}] 🏁 Client Outreach Pipeline finished.`);

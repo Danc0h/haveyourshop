@@ -332,11 +332,117 @@ Dancun Kipkorir`;
   }
 }
 
+/**
+ * Uses Gemini 2.5 Flash with Google Search Grounding to find real-world local businesses.
+ */
+async function searchRealBusinessesWithAI(niche, city, country) {
+  if (isMockAI || !aiClient) {
+    console.log('⚠️ Gemini Search Grounding: Running in mock/offline mode.');
+    return [];
+  }
+
+  try {
+    const model = aiClient.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      tools: [{ googleSearch: {} }]
+    });
+
+    const prompt = `
+      Perform a live Google Search to identify up to 5 real, active local businesses of niche category "${niche}" in "${city}", "${country}".
+      Find actual businesses that are currently operating.
+      
+      For each business, find actual details:
+      - business_name: Full name of the business.
+      - website_url: The direct website URL (e.g. "chicagodental.com"). If they do not have a website or only have directories like Yelp or Facebook, provide their Facebook page/Instagram page URL or set it to null/empty if no website is found.
+      - snippet: A 1-2 sentence description summarizing their services or focus.
+      - location: The city name, e.g. "${city}".
+      - email: Contact email address if found, or null.
+      - phone: Direct phone number if found, or null.
+      - social_media_url: Direct Instagram, Facebook, or LinkedIn business profile page if found, or null.
+
+      Output the results as a raw JSON array of objects. Do NOT wrap in markdown fences or include any conversational intro/outro text. Only raw JSON.
+    `;
+
+    const result = await model.generateContent(prompt);
+    let text = result.response.text().trim();
+    
+    // Extract JSON block if model still wrapped it in backticks
+    if (text.startsWith('```json')) text = text.substring(7);
+    if (text.startsWith('```')) text = text.substring(3);
+    if (text.endsWith('```')) text = text.substring(0, text.length - 3);
+    text = text.trim();
+    
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    return [];
+  } catch (err) {
+    console.error('❌ searchRealBusinessesWithAI failed:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Uses Gemini 2.5 Flash with Google Search Grounding to find real active scholarship & funding opportunities.
+ */
+async function searchRealScholarshipsWithAI() {
+  if (isMockAI || !aiClient) {
+    console.log('⚠️ Gemini Search Grounding: Running in mock/offline mode for scholarships.');
+    return [];
+  }
+
+  try {
+    const model = aiClient.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      tools: [{ googleSearch: {} }]
+    });
+
+    const prompt = `
+      Perform a live Google Search to identify 5 real, active fully-funded Master's (MSc) computer science, software engineering scholarships, or direct CS professor Research Assistantship (RA) funding openings open for international applications in 2026/2027.
+      Specifically look for major programs (like Erasmus Mundus Joint Masters, DAAD EPOS, Chevening, or direct advisor openings at universities in USA, Canada, UK, Germany, Europe).
+      
+      For each opportunity, find actual details:
+      - program_name: Name of the scholarship program or position.
+      - institution: University or consortium name.
+      - location: Country or countries where the program is hosted.
+      - funding_type: Fully Funded, RA/TA Advisor Position, Fellowship, etc.
+      - deadline: Application deadline in YYYY-MM-DD format (or null if rolling/unknown).
+      - application_url: Actual direct portal application URL.
+      - description: 2-3 sentence summary of the program focus.
+      - eligibility_criteria: Key criteria (degree requirements, experience, country, etc.).
+      - how_to_apply: Brief steps on how to apply.
+
+      Output the results as a raw JSON array of objects. Do NOT wrap in markdown fences or include any conversational intro/outro text. Only raw JSON.
+    `;
+
+    const result = await model.generateContent(prompt);
+    let text = result.response.text().trim();
+    
+    // Extract JSON block if model still wrapped it in backticks
+    if (text.startsWith('```json')) text = text.substring(7);
+    if (text.startsWith('```')) text = text.substring(3);
+    if (text.endsWith('```')) text = text.substring(0, text.length - 3);
+    text = text.trim();
+    
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    return [];
+  } catch (err) {
+    console.error('❌ searchRealScholarshipsWithAI failed:', err.message);
+    return [];
+  }
+}
+
 module.exports = {
   computeJobRelevance,
   generateCoverLetter,
   generateClientOutreach,
   computeScholarshipRelevance,
   generateSopOrPitch,
+  searchRealBusinessesWithAI,
+  searchRealScholarshipsWithAI,
   isMockMode: () => isMockAI
 };
