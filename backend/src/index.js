@@ -322,7 +322,7 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
       .replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/svg[\s\S]*?<\/svg>/gi, '')
       .replace(/<link[\s\S]*?>/gi, '')
-      .substring(0, 200000); // safety cap
+      .substring(0, 500000); // safety cap to support ~20-30 listings comfortably
 
     console.log(`📋 [AI File Importer] Parsed clean HTML size: ${miniHtml.length} characters. Forwarding to Gemini...`);
     const parsedLeads = await parsePastedLeads(miniHtml, niche, city);
