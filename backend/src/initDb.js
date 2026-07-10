@@ -118,6 +118,15 @@ CREATE TABLE IF NOT EXISTS pricing_configs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 8. Target Tracker Table
+CREATE TABLE IF NOT EXISTS acquisition_targets (
+  id SERIAL PRIMARY KEY,
+  city VARCHAR(255) NOT NULL,
+  niche VARCHAR(255) NOT NULL,
+  status VARCHAR(50) DEFAULT 'Pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Seed defaults
 INSERT INTO pricing_configs (template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier)
 VALUES 
@@ -150,6 +159,20 @@ async function initDb() {
     console.log('⏳ Running database initialization script on PostgreSQL...');
     await pool.query(schemaSql);
     console.log('✅ PostgreSQL Schema initialized successfully.');
+
+    // Seed targets if empty
+    const checkTargets = await pool.query('SELECT COUNT(*) FROM acquisition_targets');
+    if (parseInt(checkTargets.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO acquisition_targets (city, niche, status)
+        VALUES 
+          ('Mombasa', 'Clinics', 'Done'),
+          ('Nairobi', 'Restaurants Platforms', 'Pending'),
+          ('Dubai', 'Real Estate & Hotel Management Systems', 'Pending'),
+          ('Toronto', 'Gyms and Fitness Centers', 'Pending')
+      `);
+      console.log('🌱 Seeded default acquisition targets.');
+    }
   } catch (err) {
     console.error('❌ Failed to initialize schema on PostgreSQL:', err.message);
   } finally {

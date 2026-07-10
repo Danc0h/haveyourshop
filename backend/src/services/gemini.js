@@ -1,23 +1,49 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
-let aiClient = null;
-let isMockAI = false;
+// Load balance using process.env.GEMINI_API_KEYS (comma-separated list of keys)
+// and fallback to process.env.GEMINI_API_KEY
+const extraKeys = (process.env.GEMINI_API_KEYS || '').split(',').map(k => k.trim());
+const apiKeys = [
+  process.env.GEMINI_API_KEY,
+  ...extraKeys
+].filter(key => key && key.trim() !== '');
 
-const apiKey = process.env.GEMINI_API_KEY;
+let isMockAI = apiKeys.length === 0;
+let keyIndex = 0;
 
-if (apiKey && apiKey.trim() !== '') {
-  try {
-    // Official client initialization using the correct GoogleGenerativeAI constructor
-    aiClient = new GoogleGenerativeAI(apiKey);
-    console.log('✅ Gemini AI Service initialized successfully.');
-  } catch (e) {
-    console.warn('⚠️ Gemini AI Service failed to initialize. Running in MOCK AI mode.', e.message);
-    isMockAI = true;
-  }
+if (isMockAI) {
+  console.log('⚠️ No Gemini API keys found. Running in MOCK AI mode.');
 } else {
-  console.log('⚠️ GEMINI_API_KEY not set in .env. Running in MOCK AI mode.');
-  isMockAI = true;
+  console.log(`✅ Gemini Load Balancer initialized with ${apiKeys.length} API keys.`);
+}
+
+/**
+ * Returns a generative model using round-robin rotated API keys for load balancing.
+ */
+function getBalancerModel(options = {}) {
+  if (isMockAI || apiKeys.length === 0) {
+    console.log('⚠️ Balancer returning mock fallback.');
+    return null;
+  }
+  const key = apiKeys[keyIndex % apiKeys.length];
+  console.log(`♻️ [Gemini Load Balancer] Selected API Key index ${keyIndex % apiKeys.length} (Total: ${apiKeys.length})`);
+  keyIndex++;
+
+  try {
+    const client = new GoogleGenerativeAI(key);
+    return client.getGenerativeModel({
+      model: options.model || 'gemini-2.5-flash',
+      tools: options.tools || undefined
+    });
+  } catch (err) {
+    console.error('❌ Balancer construction failed, using first key:', err.message);
+    const fallbackClient = new GoogleGenerativeAI(apiKeys[0]);
+    return fallbackClient.getGenerativeModel({
+      model: options.model || 'gemini-2.5-flash',
+      tools: options.tools || undefined
+    });
+  }
 }
 
 // System Persona & User Background details for LLM tailoring
@@ -72,7 +98,7 @@ async function computeJobRelevance(position, description) {
   }
 
   try {
-    const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getBalancerModel({ model: 'gemini-2.5-flash' });
     const prompt = `
       You are an expert technical recruiter analyzing a job opening for a software developer.
       Review the applicant's profile:
@@ -114,7 +140,7 @@ Dancun`;
   }
 
   try {
-    const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getBalancerModel({ model: 'gemini-2.5-flash' });
     const prompt = `
       You are an expert career consultant writing a tailored cover letter for a candidate.
       
@@ -168,7 +194,7 @@ hello@haveyourshop.online`;
   }
 
   try {
-    const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getBalancerModel({ model: 'gemini-2.5-flash' });
     const prompt = `
       You are a software engineering consultant cold pitching ready-made digital templates to local and global businesses.
       
@@ -215,7 +241,7 @@ async function computeScholarshipRelevance(programName, description) {
   }
 
   try {
-    const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getBalancerModel({ model: 'gemini-2.5-flash' });
     const prompt = `
       You are an academic admissions evaluator reviewing a postgraduate computing scholarship.
       Candidate profile:
@@ -284,7 +310,7 @@ Dancun Kipkorir`;
   }
 
   try {
-    const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getBalancerModel({ model: 'gemini-2.5-flash' });
     let prompt = '';
 
     if (isAdvisorEmail) {
@@ -342,7 +368,7 @@ async function searchRealBusinessesWithAI(niche, city, country) {
   }
 
   try {
-    const model = aiClient.getGenerativeModel({
+    const model = getBalancerModel({
       model: 'gemini-2.5-flash',
       tools: [{ googleSearch: {} }]
     });
@@ -395,7 +421,7 @@ async function searchRealScholarshipsWithAI() {
   }
 
   try {
-    const model = aiClient.getGenerativeModel({
+    const model = getBalancerModel({
       model: 'gemini-2.5-flash',
       tools: [{ googleSearch: {} }]
     });
@@ -449,7 +475,7 @@ async function parsePastedLeads(rawText, targetNiche, city) {
   }
 
   try {
-    const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getBalancerModel({ model: 'gemini-2.5-flash' });
     const prompt = `
       You are an expert data parsing assistant.
       The user has searched for "${targetNiche}" in "${city}" and copied the raw text results from their browser (Google Search, Google Maps, or local directories).

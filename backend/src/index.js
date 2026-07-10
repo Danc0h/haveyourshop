@@ -137,7 +137,72 @@ Antigravity SWE Bot`;
 
 
 // ----------------------------------------------------
-// 2. CRM CLIENT LEADS APIS
+// 2. CRM TARGET TRACKER APIS
+// ----------------------------------------------------
+
+/**
+ * Get all target cities & niches.
+ */
+app.get('/api/crm/targets', async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM acquisition_targets ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Create a new target.
+ */
+app.post('/api/crm/targets', async (req, res) => {
+  const { city, niche } = req.body;
+  if (!city || !niche) {
+    return res.status(400).json({ error: 'City and niche are required.' });
+  }
+  try {
+    const result = await db.query(
+      'INSERT INTO acquisition_targets (city, niche, status) VALUES ($1, $2, $3) RETURNING *',
+      [city, niche, 'Pending']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update target status.
+ */
+app.put('/api/crm/targets/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    const result = await db.query(
+      'UPDATE acquisition_targets SET status = $1 WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Delete a target.
+ */
+app.delete('/api/crm/targets/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.query('DELETE FROM acquisition_targets WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// 2B. CRM CLIENT LEADS APIS
 // ----------------------------------------------------
 
 /**

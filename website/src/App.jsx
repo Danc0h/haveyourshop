@@ -123,6 +123,9 @@ function App() {
   const [importFileNiche, setImportFileNiche] = useState('');
   const [importFileCity, setImportFileCity] = useState('');
   const [importingFile, setImportingFile] = useState(false);
+  const [acquisitionTargets, setAcquisitionTargets] = useState([]);
+  const [newTargetCity, setNewTargetCity] = useState('');
+  const [newTargetNiche, setNewTargetNiche] = useState('Clinic Management Systems');
   const [newLeadData, setNewLeadData] = useState({
     business_name: '',
     industry: '',
@@ -275,17 +278,19 @@ function App() {
   const fetchCrmData = async () => {
     setLoading(true);
     try {
-      const [leadsRes, jobsRes, scholarshipsRes, metricsRes] = await Promise.all([
+      const [leadsRes, jobsRes, scholarshipsRes, metricsRes, targetsRes] = await Promise.all([
         fetch(`${API_URL}/crm/leads`).then(r => r.ok ? r.json() : []),
         fetch(`${API_URL}/crm/jobs`).then(r => r.ok ? r.json() : []),
         fetch(`${API_URL}/crm/scholarships`).then(r => r.ok ? r.json() : []),
-        fetch(`${API_URL}/crm/metrics`).then(r => r.ok ? r.json() : null)
+        fetch(`${API_URL}/crm/metrics`).then(r => r.ok ? r.json() : null),
+        fetch(`${API_URL}/crm/targets`).then(r => r.ok ? r.json() : [])
       ]);
       
       if (leadsRes.length > 0) setLeads(leadsRes);
       if (jobsRes.length > 0) setJobs(jobsRes);
       if (scholarshipsRes.length > 0) setScholarships(scholarshipsRes);
       if (metricsRes) setMetrics(metricsRes);
+      if (targetsRes) setAcquisitionTargets(targetsRes);
     } catch (err) {
       console.warn('⚠️ CRM API unavailable. Using default mock datasets.');
       loadLocalMockData();
@@ -839,6 +844,60 @@ function App() {
       setImportingFile(false);
     };
     reader.readAsText(file);
+  };
+
+  const handleAddTarget = async (e) => {
+    e.preventDefault();
+    if (newTargetCity.trim() === '') {
+      alert('Please specify a target city.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/crm/targets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          city: newTargetCity.trim(),
+          niche: newTargetNiche
+        })
+      });
+      if (res.ok) {
+        setNewTargetCity('');
+        fetchCrmData();
+      }
+    } catch (err) {
+      alert('Failed to add target.');
+    }
+  };
+
+  const handleToggleTargetStatus = async (id, currentStatus) => {
+    const nextStatus = currentStatus === 'Pending' ? 'Done' : 'Pending';
+    try {
+      const res = await fetch(`${API_URL}/crm/targets/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (res.ok) {
+        fetchCrmData();
+      }
+    } catch (err) {
+      alert('Failed to toggle target status.');
+    }
+  };
+
+  const handleDeleteTarget = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this target?')) return;
+    try {
+      const res = await fetch(`${API_URL}/crm/targets/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchCrmData();
+      }
+    } catch (err) {
+      alert('Failed to delete target.');
+    }
   };
 
   const handleAdminLogin = (e) => {
@@ -1698,138 +1757,128 @@ function App() {
                     </form>
                   </div>
                 )}
-
-                {/* Lead Scraper Control Panel */}
+                  {/* Acquisition Target Tracker Board */}
                 <div className="glass-card" style={{ marginBottom: '24px', padding: '24px', textAlign: 'left', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  <h4 style={{ margin: '0 0 16px 0', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Cpu size={18} /> Organic Lead Scraper Control Panel
+                  <h4 style={{ margin: '0 0 8px 0', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Cpu size={18} /> Acquisition Target Tracker Board
                   </h4>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
+                    Track your upcoming agency target cities and niche campaigns. Click on a target niche or city to automatically pre-fill your HTML/MHT search and paste importers!
+                  </p>
                   
-                  <div className="grid-cols-3" style={{ gap: '16px', marginBottom: '16px' }}>
+                  {/* Add New Target Form */}
+                  <form onSubmit={handleAddTarget} className="grid-cols-3" style={{ gap: '16px', marginBottom: '20px', alignItems: 'flex-end' }}>
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Target Country</label>
-                      <select 
-                        className="form-input" 
-                        value={scraperCountry} 
-                        onChange={(e) => {
-                          setScraperCountry(e.target.value);
-                          const presetCities = {
-                            'United States': ['New York', 'Los Angeles', 'Chicago'],
-                            'United Kingdom': ['London', 'Manchester'],
-                            'Canada': ['Toronto', 'Vancouver'],
-                            'Australia': ['Sydney', 'Melbourne'],
-                            'United Arab Emirates': ['Dubai'],
-                            'Kenya': ['Nairobi']
-                          };
-                          setScraperCities(presetCities[e.target.value] || []);
-                        }}
-                        style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
-                      >
-                        <option value="United States">🇺🇸 United States</option>
-                        <option value="United Kingdom">🇬🇧 United Kingdom</option>
-                        <option value="Canada">🇨🇦 Canada</option>
-                        <option value="Australia">🇦🇺 Australia</option>
-                        <option value="United Arab Emirates">🇦🇪 United Arab Emirates</option>
-                        <option value="Kenya">🇰🇪 Kenya</option>
-                      </select>
-                    </div>
-
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Target Niche Category</label>
-                      <select 
-                        className="form-input" 
-                        value={scraperNiche} 
-                        onChange={(e) => setScraperNiche(e.target.value)}
-                        style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
-                      >
-                        <option value="Boutiques and Retail Shops">🛍️ Boutiques and Retail Shops</option>
-                        <option value="Dentists and Dental Practices">🦷 Dentists and Dental Practices</option>
-                        <option value="Gyms and Fitness Centers">💪 Gyms and Fitness Centers</option>
-                        <option value="Law Firms and Lawyers">⚖️ Law Firms and Lawyers</option>
-                        <option value="Restaurants and Cafes">🍔 Restaurants and Cafes</option>
-                        <option value="Salons and Spas">💇 Salons and Spas</option>
-                        <option value="Real Estate Agencies">🏢 Real Estate Agencies</option>
-                        <option value="E-commerce Stores">🛒 E-commerce Stores</option>
-                      </select>
-                    </div>
-
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Cities Preset Selector</label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '6px 0' }}>
-                        {['New York', 'Los Angeles', 'Chicago', 'London', 'Manchester', 'Toronto', 'Vancouver', 'Sydney', 'Melbourne', 'Dubai', 'Nairobi'].filter(city => {
-                          const presetCities = {
-                            'United States': ['New York', 'Los Angeles', 'Chicago'],
-                            'United Kingdom': ['London', 'Manchester'],
-                            'Canada': ['Toronto', 'Vancouver'],
-                            'Australia': ['Sydney', 'Melbourne'],
-                            'United Arab Emirates': ['Dubai'],
-                            'Kenya': ['Nairobi']
-                          };
-                          return (presetCities[scraperCountry] || []).includes(city);
-                        }).map(city => (
-                          <label key={city} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', cursor: 'pointer' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={scraperCities.includes(city)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setScraperCities([...scraperCities, city]);
-                                } else {
-                                  setScraperCities(scraperCities.filter(c => c !== city));
-                                }
-                              }}
-                            />
-                            {city}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid-cols-2" style={{ gap: '16px', marginBottom: '20px' }}>
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Custom City Override (comma-separated)</label>
+                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Target Town / City</label>
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="e.g. Dallas, Seattle, Mombasa" 
-                        value={customCityInput} 
-                        onChange={(e) => setCustomCityInput(e.target.value)} 
+                        required
+                        placeholder="e.g. Mombasa, Nairobi, Dubai" 
+                        value={newTargetCity} 
+                        onChange={(e) => setNewTargetCity(e.target.value)} 
                         style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
                       />
                     </div>
-
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Custom Niche Override (e.g. Chiropractors)</label>
-                      <input 
-                        type="text" 
+                      <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Business Niche System</label>
+                      <select 
                         className="form-input" 
-                        placeholder="e.g. Chiropractors, Plumbers" 
-                        value={customNicheInput} 
-                        onChange={(e) => setCustomNicheInput(e.target.value)} 
+                        value={newTargetNiche} 
+                        onChange={(e) => setNewTargetNiche(e.target.value)}
                         style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', width: '100%', padding: '10px', borderRadius: '6px' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
-                    <button 
-                      onClick={handleTriggerCrawl} 
-                      disabled={crawlingLeads} 
-                      className="btn btn-primary" 
-                      style={{ padding: '10px 24px', fontSize: '0.85rem' }}
-                    >
-                      <Cpu size={14} className={crawlingLeads ? 'animate-pulse' : ''} /> {crawlingLeads ? 'Scanning Local Leads...' : 'Start Organic Scan'}
-                    </button>
-                    {crawlingLeads && (
-                      <button 
-                        onClick={() => handleStopJob('client_outreach')} 
-                        className="btn btn-secondary" 
-                        style={{ padding: '10px 16px', fontSize: '0.85rem', color: 'var(--accent)', border: '1px solid var(--accent)' }}
                       >
-                        Stop
+                        <option value="Business website Templates">💼 Business website Templates</option>
+                        <option value="E-commerce Platforms">🛒 E-commerce Platforms</option>
+                        <option value="Restaurant Platforms">🍔 Restaurant Platforms</option>
+                        <option value="Booking Systems">📅 Booking Systems</option>
+                        <option value="Clinic Management Systems">🦷 Clinic Management Systems</option>
+                        <option value="Real Estate & Hotel Management Systems">🏢 Real Estate & Hotel Management Systems</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '10px 16px', fontSize: '0.85rem' }}>
+                        + Add Target Target
                       </button>
-                    )}
+                    </div>
+                  </form>
+
+                  {/* Targets List */}
+                  <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#fff' }}>
+                      <thead>
+                        <tr style={{ background: '#0a0b10', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                          <th style={{ padding: '10px' }}>Target Town/City</th>
+                          <th style={{ padding: '10px' }}>Business Niche System</th>
+                          <th style={{ padding: '10px' }}>Campaign Status</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {acquisitionTargets.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" style={{ padding: '15px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                              No targets added. Use the form above to add your first target city!
+                            </td>
+                          </tr>
+                        ) : (
+                          acquisitionTargets.map(target => (
+                            <tr 
+                              key={target.id} 
+                              style={{ 
+                                borderBottom: '1px solid var(--border-color)', 
+                                cursor: 'pointer', 
+                                background: target.status === 'Done' ? 'rgba(16, 185, 129, 0.04)' : 'transparent' 
+                              }}
+                              onClick={() => {
+                                // Auto fill selectors when clicked
+                                setImportFileNiche(target.niche);
+                                setImportFileCity(target.city);
+                                setImportLeadNiche(target.niche);
+                                setImportLeadCity(target.city);
+                                // Open file uploader panel
+                                setShowImportFileModal(true);
+                              }}
+                              title="Click to pre-fill importer settings"
+                            >
+                              <td style={{ padding: '10px', fontWeight: '600' }}>📍 {target.city}</td>
+                              <td style={{ padding: '10px', color: 'var(--text-secondary)' }}>{target.niche}</td>
+                              <td style={{ padding: '10px' }}>
+                                <span 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleTargetStatus(target.id, target.status);
+                                  }}
+                                  style={{ 
+                                    padding: '2px 8px', 
+                                    borderRadius: '4px', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 'bold',
+                                    background: target.status === 'Done' ? 'var(--secondary)' : '#3b82f6',
+                                    color: '#000',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {target.status}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px', textAlign: 'right' }}>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTarget(target.id);
+                                  }}
+                                  className="btn btn-secondary" 
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', border: '1px solid var(--accent)', color: 'var(--accent)' }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 

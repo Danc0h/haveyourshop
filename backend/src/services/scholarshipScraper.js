@@ -146,8 +146,8 @@ async function scrapeScholarships() {
     const logOutput = logOutputLines.join('\n');
     await db.query(`
       INSERT INTO cron_runs (run_time, pipeline_type, status, tasks_executed, log_output)
-      VALUES (CURRENT_TIMESTAMP, 'scholarship_scraper', 'Success', $1, $2)
-    `, [status, JSON.stringify(tasksExecuted), logOutput]);
+      VALUES (CURRENT_TIMESTAMP, 'scholarship_scraper', $1, $2, $3)
+    `, ['Success', JSON.stringify(tasksExecuted), logOutput]);
   } catch (dbErr) {
     console.error('Failed to log scholarship_scraper cron_run to DB:', dbErr.message);
   }
