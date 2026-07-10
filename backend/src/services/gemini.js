@@ -348,9 +348,11 @@ async function searchRealBusinessesWithAI(niche, city, country) {
     });
 
     const prompt = `
-      Perform a live Google Search to identify up to 5 real, active local businesses of niche category "${niche}" in "${city}", "${country}".
+      Perform a live Google Search to identify up to 5 real, active local businesses of niche category "${niche}" in the city "${city}" (${country}).
       Find actual businesses that are currently operating.
       
+      Note: If the city is clearly located in a different country (e.g. Mombasa is in Kenya, Dubai is in UAE) than the suggested country "${country}", ignore the country suggestion and prioritize the city's true location.
+
       For each business, find actual details:
       - business_name: Full name of the business.
       - website_url: The direct website URL (e.g. "chicagodental.com"). If they do not have a website or only have directories like Yelp or Facebook, provide their Facebook page/Instagram page URL or set it to null/empty if no website is found.
@@ -436,6 +438,59 @@ async function searchRealScholarshipsWithAI() {
   }
 }
 
+/**
+ * Uses Gemini 2.5 Flash to parse raw text copied from Google/Google Maps search results
+ * and extract a structured list of businesses.
+ */
+async function parsePastedLeads(rawText, targetNiche, city) {
+  if (isMockAI || !aiClient) {
+    console.log('⚠️ Gemini Lead Parser: Running in mock/offline mode.');
+    return [];
+  }
+
+  try {
+    const model = aiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const prompt = `
+      You are an expert data parsing assistant.
+      The user has searched for "${targetNiche}" in "${city}" and copied the raw text results from their browser (Google Search, Google Maps, or local directories).
+      
+      Review the raw copied text:
+      --- START RAW TEXT ---
+      ${rawText}
+      --- END RAW TEXT ---
+
+      Extract up to 15 businesses mentioned in this text. For each business, extract:
+      - business_name: The company/clinic name.
+      - website_url: The direct website address (e.g. "chicagoclinic.com"). If they do not have a website or it is not listed, specify null or leave blank.
+      - snippet: A brief description or note about what they do or their services.
+      - location: The city name, e.g. "${city}".
+      - email: Email address if found in the text, or null.
+      - phone: Phone number if found in the text, or null.
+      - social_media_url: Direct Instagram/Facebook link if found in the text, or null.
+
+      Output the results as a raw JSON array of objects. Do NOT wrap in markdown fences or include any conversational intro/outro text. Only raw JSON.
+    `;
+
+    const result = await model.generateContent(prompt);
+    let text = result.response.text().trim();
+    
+    // Clean code fences if generated
+    if (text.startsWith('```json')) text = text.substring(7);
+    if (text.startsWith('```')) text = text.substring(3);
+    if (text.endsWith('```')) text = text.substring(0, text.length - 3);
+    text = text.trim();
+    
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    return [];
+  } catch (err) {
+    console.error('❌ AI Pasted Leads Parser Failed:', err.message);
+    return [];
+  }
+}
+
 module.exports = {
   computeJobRelevance,
   generateCoverLetter,
@@ -444,5 +499,6 @@ module.exports = {
   generateSopOrPitch,
   searchRealBusinessesWithAI,
   searchRealScholarshipsWithAI,
+  parsePastedLeads,
   isMockMode: () => isMockAI
 };

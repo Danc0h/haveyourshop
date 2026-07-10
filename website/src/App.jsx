@@ -114,6 +114,11 @@ function App() {
 
   // Manual Lead Creation State
   const [showAddLead, setShowAddLead] = useState(false);
+  const [showImportLeadText, setShowImportLeadText] = useState(false);
+  const [importLeadText, setImportLeadText] = useState('');
+  const [importLeadNiche, setImportLeadNiche] = useState('');
+  const [importLeadCity, setImportLeadCity] = useState('');
+  const [importingLeads, setImportingLeads] = useState(false);
   const [newLeadData, setNewLeadData] = useState({
     business_name: '',
     industry: '',
@@ -749,6 +754,42 @@ function App() {
       setLeads([offlineLead, ...leads]);
       setShowAddLead(false);
       setNewLeadData({ business_name: '', industry: '', location: '', website_url: '', email: '', phone: '' });
+    }
+  };
+
+  const handleImportLeadText = async (e) => {
+    e.preventDefault();
+    if (importLeadText.trim() === '') {
+      alert('Please paste some text search results.');
+      return;
+    }
+    setImportingLeads(true);
+    const finalNiche = importLeadNiche.trim() !== '' ? importLeadNiche : scraperNiche;
+    const finalCity = importLeadCity.trim() !== '' ? importLeadCity : 'Mombasa';
+    try {
+      const res = await fetch(`${API_URL}/crm/leads/import-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawText: importLeadText,
+          niche: finalNiche,
+          city: finalCity
+        })
+      });
+      if (res.ok) {
+        const result = await res.json();
+        alert(`Success: Extracted and audited ${result.count} new leads!`);
+        setShowImportLeadText(false);
+        setImportLeadText('');
+        fetchCrmData();
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error}`);
+      }
+    } catch (err) {
+      alert('Error parsing or auditing leads from pasted text. Please check server logs.');
+    } finally {
+      setImportingLeads(false);
     }
   };
 
@@ -1451,10 +1492,69 @@ function App() {
               <div>
                 <div className="flex-between" style={{ marginBottom: '16px' }}>
                   <h3>Identified Business Leads</h3>
-                  <button onClick={() => setShowAddLead(true)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
-                    <Plus size={14} /> Add Lead Manually
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => { setShowImportLeadText(true); setImportLeadNiche(scraperNiche); setImportLeadCity(scraperCities[0] || 'Mombasa'); }} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', border: '1px solid var(--secondary)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <FileText size={14} color="var(--primary)" /> Import Copy-Paste Search
+                    </button>
+                    <button onClick={() => setShowAddLead(true)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <Plus size={14} /> Add Lead Manually
+                    </button>
+                  </div>
                 </div>
+
+                {showImportLeadText && (
+                  <div className="glass-card animate-fade-in" style={{ marginBottom: '24px', padding: '24px', border: '1px solid var(--primary)', textAlign: 'left' }}>
+                    <h4 style={{ color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileText size={18} /> AI Copy-Paste Search Results Importer
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
+                      To bypass search engine IP bans: search Google or Google Maps manually (e.g. <em>"Clinics in Mombasa"</em>), select and copy the search results page text (Ctrl+A & Ctrl+C), paste it below, and the AI will extract all business profiles & run digital audits!
+                    </p>
+                    <form onSubmit={handleImportLeadText} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div className="grid-cols-2" style={{ gap: '16px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label">Niche Category</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. Clinics" 
+                            value={importLeadNiche} 
+                            onChange={(e) => setImportLeadNiche(e.target.value)} 
+                          />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label">City Location</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. Mombasa" 
+                            value={importLeadCity} 
+                            onChange={(e) => setImportLeadCity(e.target.value)} 
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="form-group">
+                        <label className="form-label">Raw Pasted Browser Page Text</label>
+                        <textarea 
+                          className="form-textarea" 
+                          placeholder="Paste raw copied Google/Maps text here..." 
+                          value={importLeadText} 
+                          onChange={(e) => setImportLeadText(e.target.value)} 
+                          style={{ height: '180px', fontFamily: 'monospace', fontSize: '0.85rem', background: '#0a0b10' }}
+                          required
+                        />
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button type="submit" disabled={importingLeads} className="btn btn-primary" style={{ padding: '10px 20px' }}>
+                          {importingLeads ? 'AI Parsing & Auditing...' : 'Parse & Audit Listings'}
+                        </button>
+                        <button type="button" onClick={() => setShowImportLeadText(false)} className="btn btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
 
                 {showAddLead && (
                   <div className="glass-card animate-fade-in" style={{ marginBottom: '24px', border: '1px solid var(--secondary)' }}>

@@ -153,6 +153,128 @@ app.get('/api/crm/leads', async (req, res) => {
 });
 
 /**
+ * AI Lead Copy-Paste Parser Endpoint.
+ * Parses raw text copied from Google Search/Maps results using Gemini 2.5 Flash,
+ * performs live website presence audits, calculates scores, and inserts leads into CRM.
+ */
+app.post('/api/crm/leads/import-text', async (req, res) => {
+  const { rawText, niche, city } = req.body;
+  if (!rawText || !niche || !city) {
+    return res.status(400).json({ error: 'rawText, niche, and city are required.' });
+  }
+
+  try {
+    const { parsePastedLeads } = require('./services/gemini');
+    const { calculateLeadScore } = require('./services/leadGenerator');
+    
+    console.log(`📋 [AI Paste Parser] Parsing pasted lead text for: ${niche} in ${city}...`);
+    const parsedLeads = await parsePastedLeads(rawText, niche, city);
+    console.log(`📋 [AI Paste Parser] Successfully extracted ${parsedLeads.length} business candidates.`);
+
+    const ingestedLeads = [];
+
+    for (const lead of parsedLeads) {
+      if (!lead.business_name) continue;
+
+      // Check if lead already exists in DB
+      let exists = false;
+      try {
+        if (lead.website_url && lead.website_url.trim() !== '') {
+          const check = await db.query('SELECT 1 FROM client_leads WHERE website_url = $1 OR business_name = $2', [lead.website_url, lead.business_name]);
+          exists = check.rows && check.rows.length > 0;
+        } else {
+          const check = await db.query('SELECT 1 FROM client_leads WHERE business_name = $1', [lead.business_name]);
+          exists = check.rows && check.rows.length > 0;
+        }
+      } catch (e) {
+        exists = false;
+      }
+
+      if (exists) continue;
+
+      // Conduct audit
+      let auditData = {
+        no_website: true,
+        no_booking: true,
+        no_ssl: true,
+        outdated_tech: true,
+        pagespeed_score: 0
+      };
+
+      const hasWebsite = lead.website_url && 
+                         lead.website_url.trim() !== '' && 
+                         !lead.website_url.toLowerCase().includes('yelp.com') && 
+                         !lead.website_url.toLowerCase().includes('yellowpages.com');
+
+      if (hasWebsite) {
+        try {
+          const cleanUrl = lead.website_url.startsWith('http') ? lead.website_url : `http://${lead.website_url}`;
+          const startTime = Date.now();
+          const auditRes = await fetch(cleanUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            signal: AbortSignal.timeout(5000)
+          });
+          const latency = Date.now() - startTime;
+          
+          auditData.no_website = false;
+          auditData.no_ssl = !cleanUrl.startsWith('https://') && !auditRes.url.startsWith('https://');
+          auditData.pagespeed_score = Math.max(10, Math.min(100, Math.round(100 - (latency / 50))));
+
+          const html = await auditRes.text();
+          const lowerHtml = html.toLowerCase();
+          
+          if (['booking', 'calendar', 'schedule', 'appoint', 'reserv', 'book online'].some(kw => lowerHtml.includes(kw))) {
+            auditData.no_booking = false;
+          }
+          if (['wp-content', 'wp-includes', 'joomla', 'drupal', 'generator'].some(kw => lowerHtml.includes(kw))) {
+            auditData.outdated_tech = true;
+          }
+        } catch (auditErr) {
+          console.warn(`[Audit] Failed to audit website ${lead.website_url}:`, auditErr.message);
+          auditData.outdated_tech = true;
+          auditData.pagespeed_score = 25;
+        }
+      }
+
+      const score = calculateLeadScore(auditData);
+
+      // Save to database
+      try {
+        const queryText = `
+          INSERT INTO client_leads (
+            business_name, industry, location, website_url, email, phone, lead_score, digital_audit, status, social_media_url
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'New', $9)
+          RETURNING *;
+        `;
+        const params = [
+          lead.business_name,
+          niche,
+          city,
+          hasWebsite ? lead.website_url : '',
+          lead.email || null,
+          lead.phone || null,
+          score,
+          JSON.stringify(auditData),
+          lead.social_media_url || null
+        ];
+        const resObj = await db.query(queryText, params);
+        if (resObj.rows && resObj.rows.length > 0) {
+          ingestedLeads.push(resObj.rows[0]);
+        }
+      } catch (dbErr) {
+        console.error(`❌ DB error saving AI parsed lead ${lead.business_name}:`, dbErr.message);
+      }
+    }
+
+    res.json({ success: true, count: ingestedLeads.length, leads: ingestedLeads });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Insert a lead manually into CRM.
  */
 app.post('/api/crm/leads', async (req, res) => {
