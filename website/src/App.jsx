@@ -119,6 +119,10 @@ function App() {
   const [importLeadNiche, setImportLeadNiche] = useState('');
   const [importLeadCity, setImportLeadCity] = useState('');
   const [importingLeads, setImportingLeads] = useState(false);
+  const [showImportFileModal, setShowImportFileModal] = useState(false);
+  const [importFileNiche, setImportFileNiche] = useState('');
+  const [importFileCity, setImportFileCity] = useState('');
+  const [importingFile, setImportingFile] = useState(false);
   const [newLeadData, setNewLeadData] = useState({
     business_name: '',
     industry: '',
@@ -791,6 +795,50 @@ function App() {
     } finally {
       setImportingLeads(false);
     }
+  };
+
+  const handleImportLeadFile = async (file, nicheInput, cityInput) => {
+    if (!file) {
+      alert('Please select an HTML or MHT search file.');
+      return;
+    }
+    setImportingFile(true);
+    const finalNiche = nicheInput.trim() !== '' ? nicheInput : scraperNiche;
+    const finalCity = cityInput.trim() !== '' ? cityInput : 'Mombasa';
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const fileContent = e.target.result;
+      try {
+        const res = await fetch(`${API_URL}/crm/leads/import-file`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileContent: fileContent,
+            niche: finalNiche,
+            city: finalCity
+          })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          alert(`Success: Extracted and audited ${result.count} new leads from search file!`);
+          setShowImportFileModal(false);
+          fetchCrmData();
+        } else {
+          const errData = await res.json();
+          alert(`Error: ${errData.error}`);
+        }
+      } catch (err) {
+        alert('Error parsing or auditing leads from the file content.');
+      } finally {
+        setImportingFile(false);
+      }
+    };
+    reader.onerror = () => {
+      alert('Failed to read search file.');
+      setImportingFile(false);
+    };
+    reader.readAsText(file);
   };
 
   const handleAdminLogin = (e) => {
@@ -1493,6 +1541,9 @@ function App() {
                 <div className="flex-between" style={{ marginBottom: '16px' }}>
                   <h3>Identified Business Leads</h3>
                   <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => { setShowImportFileModal(true); setImportFileNiche(scraperNiche); setImportFileCity(scraperCities[0] || 'Mombasa'); }} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', border: '1px solid var(--secondary)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <FileSpreadsheet size={14} color="var(--primary)" /> Import HTML/MHT Search File
+                    </button>
                     <button onClick={() => { setShowImportLeadText(true); setImportLeadNiche(scraperNiche); setImportLeadCity(scraperCities[0] || 'Mombasa'); }} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', border: '1px solid var(--secondary)', display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <FileText size={14} color="var(--primary)" /> Import Copy-Paste Search
                     </button>
@@ -1501,6 +1552,67 @@ function App() {
                     </button>
                   </div>
                 </div>
+
+                {showImportFileModal && (
+                  <div className="glass-card animate-fade-in" style={{ marginBottom: '24px', padding: '24px', border: '1px solid var(--primary)', textAlign: 'left' }}>
+                    <h4 style={{ color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileSpreadsheet size={18} /> Google Search HTML/MHT File Importer
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
+                      Search Google or Google Maps, click <strong>"More businesses"</strong> to load listings, then save the webpage (as <strong>"Webpage, Single File (*.mht)"</strong> or standard <strong>*.html</strong>). Upload that file below and the AI will extract all phone numbers (from Call buttons), websites (from Globe icons), addresses, and execute dynamic audits!
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div className="grid-cols-2" style={{ gap: '16px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label">Niche Category</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. Clinics" 
+                            value={importFileNiche} 
+                            onChange={(e) => setImportFileNiche(e.target.value)} 
+                          />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label">City Location</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. Mombasa" 
+                            value={importFileCity} 
+                            onChange={(e) => setImportFileCity(e.target.value)} 
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="form-group">
+                        <label className="form-label">Upload Saved Webpage File (.html / .mht)</label>
+                        <input 
+                          type="file" 
+                          accept=".html,.htm,.mht"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              handleImportLeadFile(file, importFileNiche, importFileCity);
+                            }
+                          }}
+                          style={{ color: '#fff', padding: '10px 0' }}
+                          disabled={importingFile}
+                        />
+                      </div>
+
+                      {importingFile && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', fontWeight: '600', fontSize: '0.9rem' }}>
+                          <RefreshCw size={16} className="animate-spin" /> Decoding search file, parsing local listings & performing audits... Please wait!
+                        </div>
+                      )}
+                      
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button type="button" onClick={() => setShowImportFileModal(false)} className="btn btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {showImportLeadText && (
                   <div className="glass-card animate-fade-in" style={{ marginBottom: '24px', padding: '24px', border: '1px solid var(--primary)', textAlign: 'left' }}>

@@ -275,6 +275,162 @@ app.post('/api/crm/leads/import-text', async (req, res) => {
 });
 
 /**
+ * AI Lead MHT/HTML File Importer Endpoint.
+ * Decodes and parses raw browser MHT or HTML search files using Gemini 2.5 Flash,
+ * performs live website audits, deficiency scores, and inserts them into CRM.
+ */
+app.post('/api/crm/leads/import-file', async (req, res) => {
+  const { fileContent, niche, city } = req.body;
+  if (!fileContent || !niche || !city) {
+    return res.status(400).json({ error: 'fileContent, niche, and city are required.' });
+  }
+
+  try {
+    const { parsePastedLeads } = require('./services/gemini');
+    const { calculateLeadScore } = require('./services/leadGenerator');
+
+    // Decode MHT to clean HTML
+    function decodeQuotedPrintable(str) {
+      return str
+        .replace(/=\r?\n/g, '') // Remove soft line breaks
+        .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    }
+
+    function extractHtmlFromMht(content) {
+      const boundaryMatch = content.match(/boundary="([^"]+)"/);
+      const boundary = boundaryMatch ? boundaryMatch[1] : null;
+      if (boundary) {
+        const parts = content.split('--' + boundary);
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (part.includes('Content-Type: text/html')) {
+            const headerEnd = part.indexOf('\r\n\r\n');
+            const body = headerEnd !== -1 ? part.substring(headerEnd + 4) : part;
+            return decodeQuotedPrintable(body);
+          }
+        }
+      }
+      return content;
+    }
+
+    console.log(`📋 [AI File Importer] Decoding file for ${niche} in ${city}...`);
+    const cleanHtml = extractHtmlFromMht(fileContent);
+
+    // Strip script, style, svg to minimize tokens
+    const miniHtml = cleanHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/svg[\s\S]*?<\/svg>/gi, '')
+      .replace(/<link[\s\S]*?>/gi, '')
+      .substring(0, 200000); // safety cap
+
+    console.log(`📋 [AI File Importer] Parsed clean HTML size: ${miniHtml.length} characters. Forwarding to Gemini...`);
+    const parsedLeads = await parsePastedLeads(miniHtml, niche, city);
+    console.log(`📋 [AI File Importer] Extracted ${parsedLeads.length} listings from file.`);
+
+    const ingestedLeads = [];
+
+    for (const lead of parsedLeads) {
+      if (!lead.business_name) continue;
+
+      let exists = false;
+      try {
+        if (lead.website_url && lead.website_url.trim() !== '') {
+          const check = await db.query('SELECT 1 FROM client_leads WHERE website_url = $1 OR business_name = $2', [lead.website_url, lead.business_name]);
+          exists = check.rows && check.rows.length > 0;
+        } else {
+          const check = await db.query('SELECT 1 FROM client_leads WHERE business_name = $1', [lead.business_name]);
+          exists = check.rows && check.rows.length > 0;
+        }
+      } catch (e) {
+        exists = false;
+      }
+
+      if (exists) continue;
+
+      // Conduct audit
+      let auditData = {
+        no_website: true,
+        no_booking: true,
+        no_ssl: true,
+        outdated_tech: true,
+        pagespeed_score: 0
+      };
+
+      const hasWebsite = lead.website_url && 
+                         lead.website_url.trim() !== '' && 
+                         !lead.website_url.toLowerCase().includes('yelp.com') && 
+                         !lead.website_url.toLowerCase().includes('yellowpages.com');
+
+      if (hasWebsite) {
+        try {
+          const cleanUrl = lead.website_url.startsWith('http') ? lead.website_url : `http://${lead.website_url}`;
+          const startTime = Date.now();
+          const auditRes = await fetch(cleanUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            signal: AbortSignal.timeout(5000)
+          });
+          const latency = Date.now() - startTime;
+          
+          auditData.no_website = false;
+          auditData.no_ssl = !cleanUrl.startsWith('https://') && !auditRes.url.startsWith('https://');
+          auditData.pagespeed_score = Math.max(10, Math.min(100, Math.round(100 - (latency / 50))));
+
+          const html = await auditRes.text();
+          const lowerHtml = html.toLowerCase();
+          
+          if (['booking', 'calendar', 'schedule', 'appoint', 'reserv', 'book online'].some(kw => lowerHtml.includes(kw))) {
+            auditData.no_booking = false;
+          }
+          if (['wp-content', 'wp-includes', 'joomla', 'drupal', 'generator'].some(kw => lowerHtml.includes(kw))) {
+            auditData.outdated_tech = true;
+          }
+        } catch (auditErr) {
+          console.warn(`[Audit] Failed to audit website ${lead.website_url}:`, auditErr.message);
+          auditData.outdated_tech = true;
+          auditData.pagespeed_score = 25;
+        }
+      }
+
+      const score = calculateLeadScore(auditData);
+
+      // Save to database
+      try {
+        const queryText = `
+          INSERT INTO client_leads (
+            business_name, industry, location, website_url, email, phone, lead_score, digital_audit, status, social_media_url
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'New', $9)
+          RETURNING *;
+        `;
+        const params = [
+          lead.business_name,
+          niche,
+          city,
+          hasWebsite ? lead.website_url : '',
+          lead.email || null,
+          lead.phone || null,
+          score,
+          JSON.stringify(auditData),
+          lead.social_media_url || null
+        ];
+        const resObj = await db.query(queryText, params);
+        if (resObj.rows && resObj.rows.length > 0) {
+          ingestedLeads.push(resObj.rows[0]);
+        }
+      } catch (dbErr) {
+        console.error(`❌ DB error saving MHT parsed lead ${lead.business_name}:`, dbErr.message);
+      }
+    }
+
+    res.json({ success: true, count: ingestedLeads.length, leads: ingestedLeads });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Insert a lead manually into CRM.
  */
 app.post('/api/crm/leads', async (req, res) => {
