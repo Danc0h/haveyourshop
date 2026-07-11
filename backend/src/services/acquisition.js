@@ -1,7 +1,7 @@
 const db = require('../db');
 const jobTracker = require('./jobTracker');
 const { computeJobRelevance, searchRealBusinessesWithAI } = require('./gemini');
-const { scrapeRemotive } = require('./jobScraper');
+const { scrapeRemotive, scrapeJobicy } = require('./jobScraper');
 const { calculateLeadScore } = require('./leadGenerator');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -384,6 +384,30 @@ async function runJobScraperPipeline() {
   } catch (err) {
     logLines.push(`[Task 5] Failed: ${err.message}`);
     tasksExecuted.push({ name: 'RSS Polling', status: 'Failed', details: err.message });
+    status = 'Warning';
+  }
+
+  // TASK 6: Check Jobicy API
+  try {
+    if (!jobTracker.isJobActive('job_scraper')) {
+      logLines.push(`[Cancel] Scraper terminated by user request.`);
+      status = 'Warning';
+    } else {
+      logLines.push(`[Task 6] Querying Jobicy Remote Developer board...`);
+      const jobicyResult = await scrapeJobicy();
+      let jobicyAdded = 0;
+      if (jobicyResult && jobicyResult.success && Array.isArray(jobicyResult.jobs)) {
+        for (const job of jobicyResult.jobs) {
+          newlyDiscoveredJobs.push(job);
+          jobicyAdded++;
+        }
+      }
+      logLines.push(`[Task 6] Success: Ingested ${jobicyAdded} matching jobs from Jobicy API.`);
+      tasksExecuted.push({ name: 'Jobicy API Scrape', status: 'Success', details: `Ingested ${jobicyAdded} qualified developer roles.` });
+    }
+  } catch (err) {
+    logLines.push(`[Task 6] Failed: ${err.message}`);
+    tasksExecuted.push({ name: 'Jobicy API Scrape', status: 'Failed', details: err.message });
     status = 'Warning';
   }
 
