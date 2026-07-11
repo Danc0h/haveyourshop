@@ -2145,7 +2145,7 @@ function App() {
                                     <span className="badge" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{job.company_name}</span>
                                   </div>
                                   <p style={{ fontSize: '0.85rem', margin: '4px 0 8px 0', color: 'var(--text-secondary)' }}>
-                                    📍 {job.location} | 💰 {job.salary} | 📅 Found: {new Date(job.created_at).toLocaleDateString()} | 🌐 <a href={job.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Job <ExternalLink size={10} /></a>
+                                    📍 {job.location} | 💰 {job.salary} | 📅 Posted: {job.posted_at ? new Date(job.posted_at).toLocaleDateString() : 'Recent'} | 🔍 Scanned: {new Date(job.created_at).toLocaleDateString()} | 🌐 <a href={job.application_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>View Job <ExternalLink size={10} /></a>
                                   </p>
                                   <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', marginBottom: '8px' }}>
                                     {job.job_description?.replace(/<[^>]*>/g, '')}

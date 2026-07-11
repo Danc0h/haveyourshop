@@ -1,7 +1,7 @@
 const db = require('../db');
 const jobTracker = require('./jobTracker');
 const { computeJobRelevance, searchRealBusinessesWithAI } = require('./gemini');
-const { scrapeRemotive, scrapeJobicy } = require('./jobScraper');
+const { scrapeRemotive, scrapeJobicy, isAllowedRemoteLocation } = require('./jobScraper');
 const { calculateLeadScore } = require('./leadGenerator');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -329,6 +329,10 @@ async function runJobScraperPipeline() {
           let feedAdded = 0;
           let geminiCalls = 0;
           for (const item of items) {
+            // Filter location constraints
+            const jobLocation = item.location || 'Remote';
+            if (!isAllowedRemoteLocation(jobLocation)) continue;
+
             const matchText = `${item.title} ${item.description}`.toLowerCase();
             const matchesStack = ['react', 'native', 'node', 'javascript', 'js', 'python', 'django', 'php', 'laravel', 'docker', 'kubernetes', 'container'].some(kw => matchText.includes(kw));
             
@@ -352,9 +356,9 @@ async function runJobScraperPipeline() {
                 const exists = await jobExists(item.link);
                 if (!exists) {
                   await db.query(`
-                     INSERT INTO job_listings (company_name, position, salary, location, application_url, job_description, relevance_score, status, how_to_apply)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, 'Discovered', $8)
-                   `, [item.company_name, item.title, 'Remote / Contract', 'Remote', item.link, item.description, score, 'Apply through the external freelance board at the listing link.']);
+                     INSERT INTO job_listings (company_name, position, salary, location, application_url, job_description, relevance_score, status, how_to_apply, posted_at)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, 'Discovered', $8, $9)
+                   `, [item.company_name, item.title, 'Remote / Contract', jobLocation, item.link, item.description, score, 'Apply through the external freelance board at the listing link.', item.pubDate ? new Date(item.pubDate) : new Date()]);
                   
                   newlyDiscoveredJobs.push({
                     company_name: item.company_name,

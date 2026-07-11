@@ -615,6 +615,48 @@ app.post('/api/crm/jobs/import-file', async (req, res) => {
 
   try {
     const { getBalancerModel, computeJobRelevance } = require('./services/gemini');
+    const { isAllowedRemoteLocation } = require('./services/jobScraper');
+
+    // Helper to parse relative date formats like "3 days ago" or "July 10"
+    function parseRelativeDate(dateStr) {
+      if (!dateStr) return new Date();
+      const dStr = dateStr.toLowerCase();
+      const now = new Date();
+      
+      if (dStr.includes('hour') || dStr.includes('min') || dStr.includes('today')) {
+        return now;
+      }
+      if (dStr.includes('day')) {
+        const match = dStr.match(/(\d+)/);
+        if (match) {
+          const days = parseInt(match[1]);
+          now.setDate(now.getDate() - days);
+          return now;
+        }
+      }
+      if (dStr.includes('week')) {
+        const match = dStr.match(/(\d+)/);
+        if (match) {
+          const weeks = parseInt(match[1]);
+          now.setDate(now.getDate() - (weeks * 7));
+          return now;
+        }
+      }
+      if (dStr.includes('month')) {
+        const match = dStr.match(/(\d+)/);
+        if (match) {
+          const months = parseInt(match[1]);
+          now.setMonth(now.getMonth() - months);
+          return now;
+        }
+      }
+      
+      const parsed = Date.parse(dateStr);
+      if (!isNaN(parsed)) {
+        return new Date(parsed);
+      }
+      return now;
+    }
 
     // Decode MHT to clean HTML
     function decodeQuotedPrintable(str) {
@@ -670,6 +712,7 @@ app.post('/api/crm/jobs/import-file', async (req, res) => {
       - job_url: The direct application/job details link. If it's a relative URL or mapping, extract what you can or leave blank.
       - description: A brief 2-3 sentence summary of the role, core tech stack, and experience level.
       - how_to_apply: Quick info on how to apply or link.
+      - date_posted: The date or relative time the job was posted (e.g. "3 days ago", "July 10", "2 hours ago").
 
       Output the results as a raw JSON array of objects. Do NOT wrap in markdown fences or include any conversational intro/outro text. Only raw JSON.
     `;
@@ -689,6 +732,11 @@ app.post('/api/crm/jobs/import-file', async (req, res) => {
 
     for (const job of parsedJobs) {
       if (!job.job_title || !job.company_name) continue;
+
+      const jobLocation = job.location || 'Remote';
+
+      // Skip restricted location jobs
+      if (!isAllowedRemoteLocation(jobLocation)) continue;
 
       // Check if job already exists in DB
       let exists = false;
@@ -715,19 +763,20 @@ app.post('/api/crm/jobs/import-file', async (req, res) => {
         const checkUrl = job.job_url || `${job.job_title.toLowerCase().replace(/[^a-z]/g, '')}-${job.company_name.toLowerCase().replace(/[^a-z]/g, '')}`;
         const queryText = `
           INSERT INTO job_listings (
-            job_title, company_name, location, source_platform, job_url, description, relevance_score, how_to_apply
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            job_title, company_name, location, source_platform, job_url, description, relevance_score, how_to_apply, posted_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           RETURNING *;
         `;
         const params = [
           job.job_title,
           job.company_name,
-          job.location || 'Remote',
+          jobLocation,
           'LinkedIn/Wellfound Import',
           checkUrl,
           job.description || '',
           score,
-          job.how_to_apply || 'Apply via company portal'
+          job.how_to_apply || 'Apply via company portal',
+          parseRelativeDate(job.date_posted)
         ];
         const resObj = await db.query(queryText, params);
         if (resObj.rows && resObj.rows.length > 0) {

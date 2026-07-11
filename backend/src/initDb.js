@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS job_listings (
   cv_generated_path TEXT,
   cover_letter_text TEXT,
   how_to_apply TEXT,
+  posted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -141,6 +142,7 @@ ON CONFLICT (template_key) DO NOTHING;
 -- Migrations/Alter statements for existing schemas
 ALTER TABLE client_leads ADD COLUMN IF NOT EXISTS social_media_url VARCHAR(255);
 ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
+ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS posted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE scholarship_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
 `;
 

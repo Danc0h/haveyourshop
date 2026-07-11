@@ -1,6 +1,34 @@
 const db = require('../db');
 const { computeJobRelevance } = require('./gemini');
 
+/**
+ * Filter to ensure location-specific strict country/time-zone jobs are skipped,
+ * and only worldwide, global, Africa/EMEA-friendly, or general remote roles are ingested.
+ */
+function isAllowedRemoteLocation(location) {
+  if (!location) return true;
+  const loc = location.toLowerCase();
+
+  // Strict country boundaries that exclude global remote developers
+  const strictRestricted = [
+    'us only', 'usa only', 'united states', 'canada only', 'uk only', 
+    'united kingdom', 'brazil', 'mexico', 'india', 'japan', 'australia', 
+    'germany', 'france', 'latin america', 'latam'
+  ];
+
+  // Check if location matches strict country restrictions
+  const matchesStrict = strictRestricted.some(country => loc.includes(country));
+  if (matchesStrict) {
+    // Keep only if it explicitly permits worldwide/global applications too
+    const matchesWorldwide = ['worldwide', 'global', 'anywhere', 'everywhere'].some(w => loc.includes(w));
+    if (!matchesWorldwide) {
+      console.log(`🚫 Skipping strict location job restricted to: "${location}"`);
+      return false;
+    }
+  }
+  return true;
+}
+
 // Fetch remote jobs from Remotive (public, free-tier friendly developer API)
 async function scrapeRemotive() {
   console.log('⏳ Job Scraper: Fetching listings from Remotive API...');
@@ -18,6 +46,11 @@ async function scrapeRemotive() {
     const ingestedJobs = [];
     
     for (const job of jobs) {
+      const jobLocation = job.candidate_required_location || 'Remote';
+      
+      // Filter location constraints
+      if (!isAllowedRemoteLocation(jobLocation)) continue;
+
       // 1. Basic stack filter (ensure relevance to Python, JS, Node, React, React Native, PHP)
       const contentText = `${job.title} ${job.description}`.toLowerCase();
       const hasKeywords = ['react', 'native', 'node', 'javascript', 'js', 'python', 'php', 'full stack', 'mobile'].some(kw => 
@@ -36,8 +69,8 @@ async function scrapeRemotive() {
       try {
         const queryText = `
           INSERT INTO job_listings (
-            company_name, position, salary, location, application_url, job_description, relevance_score, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            company_name, position, salary, location, application_url, job_description, relevance_score, status, posted_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           ON CONFLICT (application_url) DO NOTHING
           RETURNING id;
         `;
@@ -45,11 +78,12 @@ async function scrapeRemotive() {
           job.company_name,
           job.title,
           job.salary || 'Not specified',
-          job.candidate_required_location || 'Remote',
+          jobLocation,
           job.url,
           job.description,
           score,
-          'Discovered'
+          'Discovered',
+          job.publication_date ? new Date(job.publication_date) : new Date()
         ];
         
         const result = await db.query(queryText, params);
@@ -98,6 +132,11 @@ async function scrapeJobicy() {
     const ingestedJobs = [];
     
     for (const job of jobs) {
+      const jobLocation = job.jobGeo || 'Remote';
+
+      // Filter location constraints
+      if (!isAllowedRemoteLocation(jobLocation)) continue;
+
       // 1. Basic stack filter (ensure relevance to Python, JS, Node, React, React Native, PHP)
       const contentText = `${job.jobTitle} ${job.jobDescription}`.toLowerCase();
       const hasKeywords = ['react', 'native', 'node', 'javascript', 'js', 'python', 'php', 'full stack', 'mobile'].some(kw => 
@@ -120,8 +159,8 @@ async function scrapeJobicy() {
       try {
         const queryText = `
           INSERT INTO job_listings (
-            company_name, position, salary, location, application_url, job_description, relevance_score, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            company_name, position, salary, location, application_url, job_description, relevance_score, status, posted_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           ON CONFLICT (application_url) DO NOTHING
           RETURNING id;
         `;
@@ -129,11 +168,12 @@ async function scrapeJobicy() {
           job.companyName,
           job.jobTitle,
           job.salaryMin ? `${job.salaryMin} - ${job.salaryMax} ${job.salaryCurrency}` : 'Remote',
-          job.jobGeo || 'Remote',
+          jobLocation,
           job.url,
           job.jobDescription,
           score,
-          'Discovered'
+          'Discovered',
+          job.pubDate ? new Date(job.pubDate) : new Date()
         ];
         
         const result = await db.query(queryText, params);
@@ -163,5 +203,6 @@ async function scrapeJobicy() {
 
 module.exports = {
   scrapeRemotive,
-  scrapeJobicy
+  scrapeJobicy,
+  isAllowedRemoteLocation
 };
