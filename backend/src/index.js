@@ -603,6 +603,148 @@ app.get('/api/crm/jobs', async (req, res) => {
 });
 
 /**
+ * AI Job MHT/HTML File Importer Endpoint.
+ * Parses raw browser MHT or HTML search files from LinkedIn/Wellfound,
+ * computes job relevance match score, and inserts them into CRM database.
+ */
+app.post('/api/crm/jobs/import-file', async (req, res) => {
+  const { fileContent } = req.body;
+  if (!fileContent) {
+    return res.status(400).json({ error: 'fileContent is required.' });
+  }
+
+  try {
+    const { getBalancerModel, computeJobRelevance } = require('./services/gemini');
+
+    // Decode MHT to clean HTML
+    function decodeQuotedPrintable(str) {
+      return str
+        .replace(/=\r?\n/g, '') // Remove soft line breaks
+        .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    }
+
+    function extractHtmlFromMht(content) {
+      const boundaryMatch = content.match(/boundary="([^"]+)"/);
+      const boundary = boundaryMatch ? boundaryMatch[1] : null;
+      if (boundary) {
+        const parts = content.split('--' + boundary);
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (part.includes('Content-Type: text/html')) {
+            const headerEnd = part.indexOf('\r\n\r\n');
+            const body = headerEnd !== -1 ? part.substring(headerEnd + 4) : part;
+            return decodeQuotedPrintable(body);
+          }
+        }
+      }
+      return content;
+    }
+
+    console.log(`📋 [AI Job Importer] Decoding job search results file...`);
+    const cleanHtml = extractHtmlFromMht(fileContent);
+
+    // Strip script, style, svg to minimize tokens
+    const miniHtml = cleanHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/svg[\s\S]*?<\/svg>/gi, '')
+      .replace(/<link[\s\S]*?>/gi, '')
+      .substring(0, 500000); // safety cap
+
+    console.log(`📋 [AI Job Importer] Forwarding clean HTML (${miniHtml.length} chars) to Gemini...`);
+    
+    // Parse using balancer
+    const model = getBalancerModel({ model: 'gemini-2.5-flash' });
+    if (!model) {
+      return res.status(500).json({ error: 'AI balancer offline.' });
+    }
+
+    const prompt = `
+      You are an expert data scraper. Review this LinkedIn or Wellfound job search results HTML page.
+      Extract up to 15 remote developer job listings.
+      
+      For each job listing, extract:
+      - job_title: Name of the role (e.g. Full Stack Developer, React Engineer, Python Dev).
+      - company_name: Name of the hiring company.
+      - location: Remote or city/country (e.g. Remote (US), Remote).
+      - job_url: The direct application/job details link. If it's a relative URL or mapping, extract what you can or leave blank.
+      - description: A brief 2-3 sentence summary of the role, core tech stack, and experience level.
+      - how_to_apply: Quick info on how to apply or link.
+
+      Output the results as a raw JSON array of objects. Do NOT wrap in markdown fences or include any conversational intro/outro text. Only raw JSON.
+    `;
+
+    const result = await model.generateContent([prompt, miniHtml]);
+    let text = result.response.text().trim();
+
+    if (text.startsWith('```json')) text = text.substring(7);
+    if (text.startsWith('```')) text = text.substring(3);
+    if (text.endsWith('```')) text = text.substring(0, text.length - 3);
+    text = text.trim();
+
+    const parsedJobs = JSON.parse(text);
+    console.log(`📋 [AI Job Importer] Successfully extracted ${parsedJobs.length} jobs from file.`);
+
+    const ingestedJobs = [];
+
+    for (const job of parsedJobs) {
+      if (!job.job_title || !job.company_name) continue;
+
+      // Check if job already exists in DB
+      let exists = false;
+      try {
+        const checkUrl = job.job_url || `${job.job_title.toLowerCase().replace(/[^a-z]/g, '')}-${job.company_name.toLowerCase().replace(/[^a-z]/g, '')}`;
+        const check = await db.query('SELECT 1 FROM job_listings WHERE job_url = $1 OR (job_title = $2 AND company_name = $3)', [checkUrl, job.job_title, job.company_name]);
+        exists = check.rows && check.rows.length > 0;
+      } catch (e) {
+        exists = false;
+      }
+
+      if (exists) continue;
+
+      // Compute relevance score using developer profile
+      let score = 50; // default fallback
+      try {
+        score = await computeJobRelevance(job.job_title, job.description || '');
+      } catch (e) {
+        console.warn(`[AI Job Importer] Failed to score job ${job.job_title}:`, e.message);
+      }
+
+      // Save to database
+      try {
+        const checkUrl = job.job_url || `${job.job_title.toLowerCase().replace(/[^a-z]/g, '')}-${job.company_name.toLowerCase().replace(/[^a-z]/g, '')}`;
+        const queryText = `
+          INSERT INTO job_listings (
+            job_title, company_name, location, source_platform, job_url, description, relevance_score, how_to_apply
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING *;
+        `;
+        const params = [
+          job.job_title,
+          job.company_name,
+          job.location || 'Remote',
+          'LinkedIn/Wellfound Import',
+          checkUrl,
+          job.description || '',
+          score,
+          job.how_to_apply || 'Apply via company portal'
+        ];
+        const resObj = await db.query(queryText, params);
+        if (resObj.rows && resObj.rows.length > 0) {
+          ingestedJobs.push(resObj.rows[0]);
+        }
+      } catch (dbErr) {
+        console.error(`❌ DB error saving AI parsed job ${job.job_title}:`, dbErr.message);
+      }
+    }
+
+    res.json({ success: true, count: ingestedJobs.length, jobs: ingestedJobs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Update remote job status.
  */
 app.put('/api/crm/jobs/:id/status', async (req, res) => {

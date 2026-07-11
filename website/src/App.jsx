@@ -123,6 +123,8 @@ function App() {
   const [importFileNiche, setImportFileNiche] = useState('');
   const [importFileCity, setImportFileCity] = useState('');
   const [importingFile, setImportingFile] = useState(false);
+  const [showImportJobModal, setShowImportJobModal] = useState(false);
+  const [importingJobFile, setImportingJobFile] = useState(false);
   const [acquisitionTargets, setAcquisitionTargets] = useState([]);
   const [newTargetCity, setNewTargetCity] = useState('');
   const [newTargetNiche, setNewTargetNiche] = useState('Clinic Management Systems');
@@ -842,6 +844,44 @@ function App() {
     reader.onerror = () => {
       alert('Failed to read search file.');
       setImportingFile(false);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportJobFile = async (file) => {
+    if (!file) {
+      alert('Please select an HTML or MHT job search file.');
+      return;
+    }
+    setImportingJobFile(true);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const fileContent = e.target.result;
+      try {
+        const res = await fetch(`${API_URL}/crm/jobs/import-file`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileContent })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          alert(`Success: Extracted and evaluated ${result.count} new remote jobs!`);
+          setShowImportJobModal(false);
+          fetchCrmData();
+        } else {
+          const errData = await res.json();
+          alert(`Error: ${errData.error}`);
+        }
+      } catch (err) {
+        alert('Error parsing or rating jobs from the file content.');
+      } finally {
+        setImportingJobFile(false);
+      }
+    };
+    reader.onerror = () => {
+      alert('Failed to read search file.');
+      setImportingJobFile(false);
     };
     reader.readAsText(file);
   };
@@ -2032,10 +2072,55 @@ function App() {
             {/* CRM JOBS PANEL */}
             {crmTab === 'jobs' && (
               <div>
-                <h3>Target Remote Software Roles</h3>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
-                  Automatically pulled from Remotive remote board and evaluated against your profile: React Native, Python, Node.js, PHP, E-Commerce.
-                </p>
+                <div className="flex-between" style={{ marginBottom: '16px' }}>
+                  <div style={{ textAlign: 'left' }}>
+                    <h3 style={{ margin: 0 }}>Target Remote Software Roles</h3>
+                    <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
+                      Automatically pulled from Remotive remote board and evaluated against your profile: React Native, Python, Node.js, PHP, E-Commerce.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowImportJobModal(true)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', border: '1px solid var(--secondary)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <FileSpreadsheet size={14} color="var(--primary)" /> Import LinkedIn/Wellfound File
+                  </button>
+                </div>
+
+                {showImportJobModal && (
+                  <div className="glass-card animate-fade-in" style={{ marginBottom: '24px', padding: '24px', border: '1px solid var(--primary)', textAlign: 'left' }}>
+                    <h4 style={{ color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileSpreadsheet size={18} /> LinkedIn / Wellfound Job File Importer
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
+                      Search jobs on LinkedIn or Wellfound (e.g. <em>"Software Engineer Remote"</em>), scroll to load listings, and save the webpage as <strong>"Webpage, Single File (*.mht)"</strong> or standard <strong>*.html</strong>. Upload the file below, and the AI will parse listings, compute your match score, and import them!
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Upload Saved Job Webpage (.html / .mht)</label>
+                        <input 
+                          type="file" 
+                          accept=".html,.htm,.mht"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              handleImportJobFile(file);
+                            }
+                          }}
+                          style={{ color: '#fff', padding: '10px 0' }}
+                          disabled={importingJobFile}
+                        />
+                      </div>
+
+                      {importingJobFile && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', fontWeight: '600', fontSize: '0.9rem' }}>
+                          <RefreshCw size={16} className="animate-spin" /> Decoding file, extracting remote roles & checking profile relevance score... Please wait!
+                        </div>
+                      )}
+                      
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button type="button" onClick={() => setShowImportJobModal(false)} className="btn btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px' }}><RefreshCw size={24} className="animate-spin" /> Loading job board...</div>
