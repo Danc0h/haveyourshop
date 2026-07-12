@@ -1092,8 +1092,219 @@ app.delete('/api/crm/scholarships/:id', async (req, res) => {
  */
 app.post('/api/crm/clear-database', async (req, res) => {
   try {
-    await db.query('TRUNCATE TABLE client_leads, job_listings, scholarship_listings, outreach_history, cron_runs RESTART IDENTITY CASCADE');
+    await db.query('TRUNCATE TABLE client_leads, job_listings, scholarship_listings, outreach_history, cron_runs, tech_niches, tech_topics, tech_subtopics RESTART IDENTITY CASCADE');
     res.json({ success: true, message: 'Database cleared successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// 5. CRM TECHNICAL ARSENAL APIS
+// ----------------------------------------------------
+
+/**
+ * Get all niches.
+ */
+app.get('/api/tech/niches', async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM tech_niches ORDER BY name ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Create a new niche.
+ */
+app.post('/api/tech/niches', async (req, res) => {
+  const { name, description } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Niche name is required.' });
+  }
+  try {
+    const result = await db.query(
+      'INSERT INTO tech_niches (name, description) VALUES ($1, $2) RETURNING *',
+      [name.trim(), description || '']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Delete a niche.
+ */
+app.delete('/api/tech/niches/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM tech_niches WHERE id = $1', [req.params.id]);
+    res.json({ success: true, message: 'Niche deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Get all topics (with nested subtopics) for a specific niche.
+ */
+app.get('/api/tech/niches/:nicheId/topics', async (req, res) => {
+  const { nicheId } = req.params;
+  try {
+    const topicsRes = await db.query(
+      'SELECT * FROM tech_topics WHERE niche_id = $1 ORDER BY created_at ASC',
+      [nicheId]
+    );
+    const topics = topicsRes.rows;
+
+    if (topics.length === 0) {
+      return res.json([]);
+    }
+
+    const topicIds = topics.map(t => t.id);
+    const subtopicsRes = await db.query(
+      'SELECT * FROM tech_subtopics WHERE topic_id = ANY($1) ORDER BY created_at ASC',
+      [topicIds]
+    );
+    const subtopics = subtopicsRes.rows;
+
+    const topicsMap = topics.reduce((acc, t) => {
+      acc[t.id] = { ...t, subtopics: [] };
+      return acc;
+    }, {});
+
+    subtopics.forEach(sub => {
+      if (topicsMap[sub.topic_id]) {
+        topicsMap[sub.topic_id].subtopics.push(sub);
+      }
+    });
+
+    res.json(Object.values(topicsMap));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Create a new topic.
+ */
+app.post('/api/tech/topics', async (req, res) => {
+  const { niche_id, name, notes } = req.body;
+  if (!niche_id || !name) {
+    return res.status(400).json({ error: 'Niche ID and Topic name are required.' });
+  }
+  try {
+    const result = await db.query(
+      'INSERT INTO tech_topics (niche_id, name, status, notes) VALUES ($1, $2, $3, $4) RETURNING *',
+      [niche_id, name.trim(), 'Pending', notes || '']
+    );
+    res.status(201).json({ ...result.rows[0], subtopics: [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update a topic (status, notes, or last_revised date).
+ */
+app.put('/api/tech/topics/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status, notes, last_revised } = req.body;
+  try {
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (status !== undefined) {
+      fields.push(`status = $${idx++}`);
+      values.push(status);
+    }
+    if (notes !== undefined) {
+      fields.push(`notes = $${idx++}`);
+      values.push(notes);
+    }
+    if (last_revised !== undefined) {
+      fields.push(`last_revised = $${idx++}`);
+      values.push(last_revised);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update.' });
+    }
+
+    values.push(id);
+    const queryText = `UPDATE tech_topics SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const result = await db.query(queryText, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Topic not found.' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Delete a topic.
+ */
+app.delete('/api/tech/topics/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM tech_topics WHERE id = $1', [req.params.id]);
+    res.json({ success: true, message: 'Topic deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Add a subtopic.
+ */
+app.post('/api/tech/subtopics', async (req, res) => {
+  const { topic_id, name } = req.body;
+  if (!topic_id || !name) {
+    return res.status(400).json({ error: 'Topic ID and Subtopic name are required.' });
+  }
+  try {
+    const result = await db.query(
+      'INSERT INTO tech_subtopics (topic_id, name, status) VALUES ($1, $2, $3) RETURNING *',
+      [topic_id, name.trim(), 'Pending']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Toggle a subtopic's status.
+ */
+app.put('/api/tech/subtopics/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    const result = await db.query(
+      'UPDATE tech_subtopics SET status = $1 WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Subtopic not found.' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Delete a subtopic.
+ */
+app.delete('/api/tech/subtopics/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM tech_subtopics WHERE id = $1', [req.params.id]);
+    res.json({ success: true, message: 'Subtopic deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

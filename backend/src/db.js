@@ -143,6 +143,25 @@ const mockDb = {
     { template_key: 'booking_system', base_price_one_time: 1999.00, base_price_yearly: 1399.00, base_price_monthly: 119.00, local_discount_multiplier: 0.40 },
     { template_key: 'clinic_mgmt', base_price_one_time: 4499.00, base_price_yearly: 2999.00, base_price_monthly: 249.00, local_discount_multiplier: 0.40 },
     { template_key: 'real_estate_hotel', base_price_one_time: 5999.00, base_price_yearly: 3999.00, base_price_monthly: 349.00, local_discount_multiplier: 0.40 }
+  ],
+  tech_niches: [
+    { id: 'niche-dsa', name: 'Data Structures & Algorithms', description: 'Mastering problem solving, complexities, and typical patterns for DSA interviews.' },
+    { id: 'niche-python', name: 'Python & Django', description: 'Advanced language mechanics, memory management, WSGI/ASGI servers, and REST APIs.' }
+  ],
+  tech_topics: [
+    { id: 'topic-arrays', niche_id: 'niche-dsa', name: 'Arrays & Strings', status: 'In Progress', notes: 'Focus on Sliding Window, Two-Pointer, Prefix Sums, and Hash Maps.', last_revised: new Date().toISOString() },
+    { id: 'topic-binary', niche_id: 'niche-dsa', name: 'Binary Search & BSTs', status: 'Pending', notes: 'Target log(N) operations, custom lower/upper bound searches.', last_revised: null },
+    { id: 'topic-decorators', niche_id: 'niche-python', name: 'Python Decorators & Metaclasses', status: 'Mastered', notes: 'Understand function wrapping, parameter passing, and class instantiation modification.', last_revised: new Date().toISOString() }
+  ],
+  tech_subtopics: [
+    { id: 'sub-sliding', topic_id: 'topic-arrays', name: 'Sliding Window Pattern', status: 'Completed' },
+    { id: 'sub-twopointer', topic_id: 'topic-arrays', name: 'Two-Pointer Approach', status: 'Completed' },
+    { id: 'sub-prefix', topic_id: 'topic-arrays', name: 'Prefix Sum Matrix', status: 'Pending' },
+    { id: 'sub-rotated', topic_id: 'topic-binary', name: 'Search in Rotated Sorted Array', status: 'Pending' },
+    { id: 'sub-validation', topic_id: 'topic-binary', name: 'Binary Search Tree Validation', status: 'Pending' },
+    { id: 'sub-prop', topic_id: 'topic-decorators', name: 'Property Decorators', status: 'Completed' },
+    { id: 'sub-args', topic_id: 'topic-decorators', name: 'Arguments Preservation (wraps)', status: 'Completed' },
+    { id: 'sub-meta', topic_id: 'topic-decorators', name: 'Class Decorators vs Metaclasses', status: 'Completed' }
   ]
 };
 
@@ -431,6 +450,110 @@ async function queryMock(text, params = []) {
     return { rows: [] };
   }
 
+  // Tech Niches Queries
+  if (cleanText.includes('select') && cleanText.includes('tech_niches')) {
+    return { rows: mockDb.tech_niches };
+  }
+  if (cleanText.includes('insert into tech_niches')) {
+    const newNiche = {
+      id: `niche-${Date.now()}`,
+      name: params[0],
+      description: params[1] || '',
+      created_at: new Date().toISOString()
+    };
+    mockDb.tech_niches.push(newNiche);
+    return { rows: [newNiche] };
+  }
+  if (cleanText.includes('delete from tech_niches')) {
+    const id = params[0];
+    mockDb.tech_niches = mockDb.tech_niches.filter(n => n.id !== id);
+    const deletedTopicIds = mockDb.tech_topics.filter(t => t.niche_id === id).map(t => t.id);
+    mockDb.tech_topics = mockDb.tech_topics.filter(t => t.niche_id !== id);
+    mockDb.tech_subtopics = mockDb.tech_subtopics.filter(s => !deletedTopicIds.includes(s.topic_id));
+    return { rows: [] };
+  }
+
+  // Tech Topics Queries
+  if (cleanText.includes('select') && cleanText.includes('tech_topics')) {
+    const nicheId = params[0];
+    const topics = mockDb.tech_topics.filter(t => t.niche_id === nicheId);
+    return { rows: topics };
+  }
+  if (cleanText.includes('insert into tech_topics')) {
+    const newTopic = {
+      id: `topic-${Date.now()}`,
+      niche_id: params[0],
+      name: params[1],
+      status: params[2] || 'Pending',
+      notes: params[3] || '',
+      last_revised: null,
+      created_at: new Date().toISOString()
+    };
+    mockDb.tech_topics.push(newTopic);
+    return { rows: [newTopic] };
+  }
+  if (cleanText.includes('update tech_topics')) {
+    const id = params[params.length - 1];
+    const topic = mockDb.tech_topics.find(t => t.id === id);
+    if (topic) {
+      if (cleanText.includes('status =')) {
+        const idxMatch = cleanText.split('status =')[1].match(/\$(\d+)/);
+        if (idxMatch) {
+          topic.status = params[parseInt(idxMatch[1]) - 1];
+        }
+      }
+      if (cleanText.includes('notes =')) {
+        const idxMatch = cleanText.split('notes =')[1].match(/\$(\d+)/);
+        if (idxMatch) {
+          topic.notes = params[parseInt(idxMatch[1]) - 1];
+        }
+      }
+      if (cleanText.includes('last_revised =')) {
+        const idxMatch = cleanText.split('last_revised =')[1].match(/\$(\d+)/);
+        if (idxMatch) {
+          topic.last_revised = params[parseInt(idxMatch[1]) - 1];
+        }
+      }
+      return { rows: [topic] };
+    }
+  }
+  if (cleanText.includes('delete from tech_topics')) {
+    const id = params[0];
+    mockDb.tech_topics = mockDb.tech_topics.filter(t => t.id !== id);
+    mockDb.tech_subtopics = mockDb.tech_subtopics.filter(s => s.topic_id !== id);
+    return { rows: [] };
+  }
+
+  // Tech Subtopics Queries
+  if (cleanText.includes('select') && cleanText.includes('tech_subtopics')) {
+    const topicIds = params[0];
+    const subs = mockDb.tech_subtopics.filter(s => topicIds.includes(s.topic_id));
+    return { rows: subs };
+  }
+  if (cleanText.includes('insert into tech_subtopics')) {
+    const newSub = {
+      id: `sub-${Date.now()}`,
+      topic_id: params[0],
+      name: params[1],
+      status: params[2] || 'Pending',
+      created_at: new Date().toISOString()
+    };
+    mockDb.tech_subtopics.push(newSub);
+    return { rows: [newSub] };
+  }
+  if (cleanText.includes('update tech_subtopics')) {
+    const status = params[0];
+    const id = params[1];
+    const sub = mockDb.tech_subtopics.find(s => s.id === id);
+    if (sub) sub.status = status;
+    return { rows: sub ? [sub] : [] };
+  }
+  if (cleanText.includes('delete from tech_subtopics')) {
+    const id = params[0];
+    mockDb.tech_subtopics = mockDb.tech_subtopics.filter(s => s.id !== id);
+    return { rows: [] };
+  }
+
   // 12. TRUNCATE tables (Clear database)
   if (cleanText.includes('truncate')) {
     mockDb.client_leads = [];
@@ -438,6 +561,9 @@ async function queryMock(text, params = []) {
     mockDb.scholarship_listings = [];
     mockDb.outreach_history = [];
     mockDb.cron_runs = [];
+    mockDb.tech_niches = [];
+    mockDb.tech_topics = [];
+    mockDb.tech_subtopics = [];
     return { rows: [] };
   }
 

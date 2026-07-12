@@ -144,6 +144,36 @@ ALTER TABLE client_leads ADD COLUMN IF NOT EXISTS social_media_url VARCHAR(255);
 ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
 ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS posted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE scholarship_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
+
+-- 5. Tech Niches Table
+CREATE TABLE IF NOT EXISTS tech_niches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL UNIQUE,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Tech Topics Table
+CREATE TABLE IF NOT EXISTS tech_topics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  niche_id UUID REFERENCES tech_niches(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  status VARCHAR(50) DEFAULT 'Pending', -- 'Pending', 'In Progress', 'Mastered'
+  notes TEXT,
+  last_revised TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unique_niche_topic UNIQUE (niche_id, name)
+);
+
+-- 7. Tech Subtopics Table
+CREATE TABLE IF NOT EXISTS tech_subtopics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  topic_id UUID REFERENCES tech_topics(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  status VARCHAR(50) DEFAULT 'Pending', -- 'Pending', 'Completed'
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unique_topic_subtopic UNIQUE (topic_id, name)
+);
 `;
 
 async function initDb() {
@@ -174,6 +204,71 @@ async function initDb() {
           ('Toronto', 'Gyms and Fitness Centers', 'Pending')
       `);
       console.log('🌱 Seeded default acquisition targets.');
+    }
+
+    // Seed default tech niches and topics if empty
+    const checkNiches = await pool.query('SELECT COUNT(*) FROM tech_niches');
+    if (parseInt(checkNiches.rows[0].count) === 0) {
+      console.log('🌱 Seeding default Technical Niches, Topics, and Subtopics...');
+      
+      // DSA Niche
+      const dsaRes = await pool.query(`
+        INSERT INTO tech_niches (name, description)
+        VALUES ('Data Structures & Algorithms', 'Mastering problem solving, complexities, and typical patterns for DSA interviews.')
+        RETURNING id
+      `);
+      const dsaId = dsaRes.rows[0].id;
+      
+      const arraysRes = await pool.query(`
+        INSERT INTO tech_topics (niche_id, name, status, notes)
+        VALUES ($1, 'Arrays & Strings', 'In Progress', 'Focus on Sliding Window, Two-Pointer, Prefix Sums, and Hash Maps.')
+        RETURNING id
+      `, [dsaId]);
+      const arraysId = arraysRes.rows[0].id;
+      await pool.query(`
+        INSERT INTO tech_subtopics (topic_id, name, status)
+        VALUES 
+          ($1, 'Sliding Window Pattern', 'Completed'),
+          ($1, 'Two-Pointer Approach', 'Completed'),
+          ($1, 'Prefix Sum Matrix', 'Pending')
+      `, [arraysId]);
+
+      const searchRes = await pool.query(`
+        INSERT INTO tech_topics (niche_id, name, status, notes)
+        VALUES ($1, 'Binary Search & BSTs', 'Pending', 'Target log(N) operations, custom lower/upper bound searches.')
+        RETURNING id
+      `, [dsaId]);
+      const searchId = searchRes.rows[0].id;
+      await pool.query(`
+        INSERT INTO tech_subtopics (topic_id, name, status)
+        VALUES 
+          ($1, 'Search in Rotated Sorted Array', 'Pending'),
+          ($1, 'Binary Search Tree Validation', 'Pending')
+      `, [searchId]);
+
+      // Python Niche
+      const pyRes = await pool.query(`
+        INSERT INTO tech_niches (name, description)
+        VALUES ('Python & Django', 'Advanced language mechanics, memory management, WSGI/ASGI servers, and REST APIs.')
+        RETURNING id
+      `);
+      const pyId = pyRes.rows[0].id;
+      
+      const decoratorRes = await pool.query(`
+        INSERT INTO tech_topics (niche_id, name, status, notes)
+        VALUES ($1, 'Python Decorators & Metaclasses', 'Mastered', 'Understand function wrapping, parameter passing, and class instantiation modification.')
+        RETURNING id
+      `, [pyId]);
+      const decId = decoratorRes.rows[0].id;
+      await pool.query(`
+        INSERT INTO tech_subtopics (topic_id, name, status)
+        VALUES 
+          ($1, 'Property Decorators', 'Completed'),
+          ($1, 'Arguments Preservation (wraps)', 'Completed'),
+          ($1, 'Class Decorators vs Metaclasses', 'Completed')
+      `, [decId]);
+
+      console.log('🌱 Tech Arsenal seeded successfully.');
     }
   } catch (err) {
     console.error('❌ Failed to initialize schema on PostgreSQL:', err.message);

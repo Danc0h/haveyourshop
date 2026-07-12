@@ -25,7 +25,8 @@ import {
   RefreshCw,
   Plus,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Terminal
 } from 'lucide-react';
 import './App.css';
 
@@ -136,6 +137,19 @@ function App() {
     email: '',
     phone: ''
   });
+
+  // Technical Arsenal State
+  const [techNiches, setTechNiches] = useState([]);
+  const [selectedNiche, setSelectedNiche] = useState(null);
+  const [techTopics, setTechTopics] = useState([]);
+  const [newNicheName, setNewNicheName] = useState('');
+  const [newNicheDesc, setNewNicheDesc] = useState('');
+  const [newTopicName, setNewTopicName] = useState('');
+  const [newTopicNotes, setNewTopicNotes] = useState('');
+  const [newSubtopicName, setNewSubtopicName] = useState('');
+  const [selectedTopicForSubtopic, setSelectedTopicForSubtopic] = useState(null);
+  const [editingNotesTopic, setEditingNotesTopic] = useState(null);
+  const [editingNotesText, setEditingNotesText] = useState('');
 
   // Public Contact Form State
   const [formData, setFormData] = useState({
@@ -447,8 +461,15 @@ function App() {
     if (currentPage === 'crm' && isAdminAuthenticated) {
       fetchCrmData();
       fetchCronRuns();
+      fetchNiches();
     }
   }, [currentPage, isAdminAuthenticated]);
+
+  useEffect(() => {
+    if (selectedNiche) {
+      fetchTopicsForNiche(selectedNiche.id);
+    }
+  }, [selectedNiche]);
 
   const handleNavClick = (page) => {
     setCurrentPage(page);
@@ -884,6 +905,234 @@ function App() {
       setImportingJobFile(false);
     };
     reader.readAsText(file);
+  };
+
+  const fetchNiches = async () => {
+    try {
+      const res = await fetch(`${API_URL}/tech/niches`);
+      if (res.ok) {
+        const data = await res.json();
+        setTechNiches(data);
+        if (data.length > 0 && !selectedNiche) {
+          setSelectedNiche(data[0]);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Niches API unavailable.');
+    }
+  };
+
+  const fetchTopicsForNiche = async (nicheId) => {
+    if (!nicheId) return;
+    try {
+      const res = await fetch(`${API_URL}/tech/niches/${nicheId}/topics`);
+      if (res.ok) {
+        const data = await res.json();
+        setTechTopics(data);
+      }
+    } catch (err) {
+      console.warn('⚠️ Topics API unavailable.');
+    }
+  };
+
+  const handleCreateNiche = async (e) => {
+    e.preventDefault();
+    if (newNicheName.trim() === '') {
+      alert('Please specify a niche name.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/tech/niches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newNicheName, description: newNicheDesc })
+      });
+      if (res.ok) {
+        const newNiche = await res.json();
+        setTechNiches(prev => [...prev, newNiche]);
+        setSelectedNiche(newNiche);
+        setNewNicheName('');
+        setNewNicheDesc('');
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error}`);
+      }
+    } catch (err) {
+      alert('Error creating technical niche.');
+    }
+  };
+
+  const handleDeleteNiche = async (nicheId) => {
+    if (!window.confirm('Are you sure you want to delete this technical niche? All nested topics and subtopics will be permanently lost.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/tech/niches/${nicheId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTechNiches(prev => prev.filter(n => n.id !== nicheId));
+        if (selectedNiche && selectedNiche.id === nicheId) {
+          const fallback = techNiches.find(n => n.id !== nicheId) || null;
+          setSelectedNiche(fallback);
+        }
+      }
+    } catch (err) {
+      alert('Error deleting technical niche.');
+    }
+  };
+
+  const handleCreateTopic = async (e) => {
+    e.preventDefault();
+    if (!selectedNiche) {
+      alert('Please select a niche first.');
+      return;
+    }
+    if (newTopicName.trim() === '') {
+      alert('Please specify a topic name.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/tech/topics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ niche_id: selectedNiche.id, name: newTopicName, notes: newTopicNotes })
+      });
+      if (res.ok) {
+        const newTopic = await res.json();
+        setTechTopics(prev => [...prev, newTopic]);
+        setNewTopicName('');
+        setNewTopicNotes('');
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error}`);
+      }
+    } catch (err) {
+      alert('Error creating topic.');
+    }
+  };
+
+  const handleDeleteTopic = async (topicId) => {
+    if (!window.confirm('Delete this topic?')) return;
+    try {
+      const res = await fetch(`${API_URL}/tech/topics/${topicId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTechTopics(prev => prev.filter(t => t.id !== topicId));
+      }
+    } catch (err) {
+      alert('Error deleting topic.');
+    }
+  };
+
+  const handleUpdateTopicStatus = async (topicId, currentStatus) => {
+    const statuses = ['Pending', 'In Progress', 'Mastered'];
+    const nextStatus = statuses[(statuses.indexOf(currentStatus) + 1) % statuses.length];
+    
+    const payload = { status: nextStatus };
+    if (nextStatus === 'Mastered') {
+      payload.last_revised = new Date().toISOString();
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/tech/topics/${topicId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTechTopics(prev => prev.map(t => t.id === topicId ? { ...t, ...updated } : t));
+      }
+    } catch (err) {
+      alert('Error updating topic status.');
+    }
+  };
+
+  const handleSaveTopicNotes = async () => {
+    if (!editingNotesTopic) return;
+    try {
+      const res = await fetch(`${API_URL}/tech/topics/${editingNotesTopic.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: editingNotesText })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTechTopics(prev => prev.map(t => t.id === editingNotesTopic.id ? { ...t, ...updated } : t));
+        setEditingNotesTopic(null);
+        setEditingNotesText('');
+      }
+    } catch (err) {
+      alert('Error saving topic notes.');
+    }
+  };
+
+  const handleCreateSubtopic = async (e, topicId) => {
+    e.preventDefault();
+    if (newSubtopicName.trim() === '') return;
+    try {
+      const res = await fetch(`${API_URL}/tech/subtopics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic_id: topicId, name: newSubtopicName })
+      });
+      if (res.ok) {
+        const newSub = await res.json();
+        setTechTopics(prev => prev.map(t => {
+          if (t.id === topicId) {
+            return { ...t, subtopics: [...(t.subtopics || []), newSub] };
+          }
+          return t;
+        }));
+        setNewSubtopicName('');
+        setSelectedTopicForSubtopic(null);
+      }
+    } catch (err) {
+      alert('Error adding subtopic.');
+    }
+  };
+
+  const handleToggleSubtopic = async (subtopicId, currentStatus, topicId) => {
+    const nextStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
+    try {
+      const res = await fetch(`${API_URL}/tech/subtopics/${subtopicId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTechTopics(prev => prev.map(t => {
+          if (t.id === topicId) {
+            return {
+              ...t,
+              subtopics: t.subtopics.map(s => s.id === subtopicId ? updated : s)
+            };
+          }
+          return t;
+        }));
+      }
+    } catch (err) {
+      alert('Error toggling subtopic status.');
+    }
+  };
+
+  const handleDeleteSubtopic = async (subtopicId, topicId) => {
+    if (!window.confirm('Delete this subtopic?')) return;
+    try {
+      const res = await fetch(`${API_URL}/tech/subtopics/${subtopicId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTechTopics(prev => prev.map(t => {
+          if (t.id === topicId) {
+            return {
+              ...t,
+              subtopics: t.subtopics.filter(s => s.id !== subtopicId)
+            };
+          }
+          return t;
+        }));
+      }
+    } catch (err) {
+      alert('Error deleting subtopic.');
+    }
   };
 
   const handleAddTarget = async (e) => {
@@ -1592,6 +1841,13 @@ function App() {
                 style={{ padding: '8px 16px', fontSize: '0.9rem' }}
               >
                 <Sparkles size={16} /> Scholarships ({scholarships.length})
+              </button>
+              <button 
+                onClick={() => setCrmTab('tech')} 
+                className={`btn ${crmTab === 'tech' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+              >
+                <Terminal size={16} /> Technical Arsenal
               </button>
               <button 
                 onClick={() => setCrmTab('analytics')} 
@@ -2738,6 +2994,329 @@ function App() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* CRM TECHNICAL ARSENAL TAB */}
+            {crmTab === 'tech' && (
+              <div className="animate-fade-in" style={{ textAlign: 'left' }}>
+                <div style={{ marginBottom: '24px' }}>
+                  <h3>Technical Arsenal & Interview Progress</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    Track programming languages, framework topics, and Data Structures & Algorithms (DSA) milestones to systematically prepare for engineering interviews.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                  {/* Left Sidebar: Niches List */}
+                  <div style={{ flex: '1 1 280px', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div className="glass-card" style={{ padding: '20px', border: '1px solid var(--border-color)' }}>
+                      <h4 style={{ margin: '0 0 16px 0', color: 'var(--primary)' }}>🎯 Tech Niches</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                        {techNiches.map(niche => (
+                          <div 
+                            key={niche.id} 
+                            onClick={() => setSelectedNiche(niche)}
+                            style={{ 
+                              padding: '12px', 
+                              borderRadius: '6px', 
+                              background: selectedNiche && selectedNiche.id === niche.id ? 'rgba(139, 92, 246, 0.15)' : '#12131a', 
+                              border: selectedNiche && selectedNiche.id === niche.id ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <strong style={{ fontSize: '0.9rem', color: selectedNiche && selectedNiche.id === niche.id ? '#fff' : 'var(--text-secondary)' }}>{niche.name}</strong>
+                            </div>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleDeleteNiche(niche.id); }}
+                              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', display: 'flex', padding: '2px' }}
+                              title="Delete Niche"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        {techNiches.length === 0 && (
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No niches added yet.</div>
+                        )}
+                      </div>
+
+                      {/* Add Niche Form */}
+                      <form onSubmit={handleCreateNiche} style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.75rem' }}>Add New Niche</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. System Design, React Native"
+                            value={newNicheName}
+                            onChange={(e) => setNewNicheName(e.target.value)}
+                            style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px', width: '100%', fontSize: '0.85rem' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Brief description..."
+                            value={newNicheDesc}
+                            onChange={(e) => setNewNicheDesc(e.target.value)}
+                            style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px', width: '100%', fontSize: '0.85rem' }}
+                          />
+                        </div>
+                        <button type="submit" className="btn btn-primary" style={{ padding: '8px', fontSize: '0.85rem', width: '100%' }}>
+                          <Plus size={14} /> Add Niche
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+
+                  {/* Right Panel: Topics and Subtopics */}
+                  <div style={{ flex: '2 1 500px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {selectedNiche ? (
+                      <div>
+                        {/* Header Details */}
+                        <div className="glass-card" style={{ padding: '24px', border: '1px solid var(--border-color)', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                          <div style={{ textAlign: 'left' }}>
+                            <h3 style={{ margin: 0, color: 'var(--primary)' }}>{selectedNiche.name}</h3>
+                            <p style={{ margin: '6px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{selectedNiche.description || 'No description provided.'}</p>
+                          </div>
+                          
+                          {/* Progress Statistics */}
+                          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Topics Mastered</div>
+                              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--secondary)' }}>
+                                {techTopics.filter(t => t.status === 'Mastered').length} / {techTopics.length}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', borderLeft: '1px solid var(--border-color)', paddingLeft: '24px' }}>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Subtopics Completed</div>
+                              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)' }}>
+                                {techTopics.reduce((acc, t) => acc + (t.subtopics ? t.subtopics.filter(s => s.status === 'Completed').length : 0), 0)} / {techTopics.reduce((acc, t) => acc + (t.subtopics ? t.subtopics.length : 0), 0)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Quick Add Topic Form */}
+                        <div className="glass-card" style={{ padding: '20px', border: '1px solid var(--border-color)', marginBottom: '24px' }}>
+                          <h4 style={{ margin: '0 0 12px 0', color: '#fff', fontSize: '0.95rem' }}>➕ Add New Learning Topic</h4>
+                          <form onSubmit={handleCreateTopic} className="grid-cols-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
+                            <div className="form-group" style={{ margin: 0, gridColumn: 'span 2' }}>
+                              <label className="form-label" style={{ fontSize: '0.75rem' }}>Topic Name</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="e.g. Graphs DFS/BFS, Metaclasses, Event Loop"
+                                value={newTopicName}
+                                onChange={(e) => setNewTopicName(e.target.value)}
+                                style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px 12px', borderRadius: '4px', width: '100%', fontSize: '0.85rem' }}
+                              />
+                            </div>
+                            <button type="submit" className="btn btn-primary" style={{ padding: '10px 16px', fontSize: '0.85rem', height: '38px' }}>
+                              Add Topic
+                            </button>
+                          </form>
+                        </div>
+
+                        {/* Topics Board List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {techTopics.map(topic => {
+                            const totalSubs = topic.subtopics ? topic.subtopics.length : 0;
+                            const doneSubs = topic.subtopics ? topic.subtopics.filter(s => s.status === 'Completed').length : 0;
+                            const progressPercent = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
+
+                            let statusColor = 'rgba(239, 68, 68, 0.2)'; 
+                            let statusTextCol = '#ef4444';
+                            if (topic.status === 'In Progress') {
+                              statusColor = 'rgba(245, 158, 11, 0.2)'; 
+                              statusTextCol = '#f59e0b';
+                            } else if (topic.status === 'Mastered') {
+                              statusColor = 'rgba(16, 185, 129, 0.2)'; 
+                              statusTextCol = '#10b981';
+                            }
+
+                            return (
+                              <div key={topic.id} className="glass-card" style={{ padding: '20px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                {/* Topic Header */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>{topic.name}</h4>
+                                    
+                                    <span 
+                                      onClick={() => handleUpdateTopicStatus(topic.id, topic.status)}
+                                      className="badge" 
+                                      style={{ 
+                                        margin: 0, 
+                                        background: statusColor, 
+                                        color: statusTextCol, 
+                                        border: `1px solid ${statusTextCol}`,
+                                        cursor: 'pointer',
+                                        userSelect: 'none'
+                                      }}
+                                      title="Click to cycle status: Pending -> In Progress -> Mastered"
+                                    >
+                                      {topic.status}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    {topic.last_revised && (
+                                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                        📅 Revised: {new Date(topic.last_revised).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                    <button 
+                                      onClick={() => handleDeleteTopic(topic.id)}
+                                      style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: '4px' }}
+                                      title="Delete Topic"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Notes Summary & Edit Card */}
+                                <div style={{ background: '#12131a', padding: '12px 16px', borderRadius: '6px', borderLeft: '3px solid var(--primary)', fontSize: '0.85rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                                    <strong style={{ color: 'var(--primary)' }}>Cheat Sheet Notes</strong>
+                                    <button 
+                                      onClick={() => { setEditingNotesTopic(topic); setEditingNotesText(topic.notes || ''); }} 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: '2px 8px', fontSize: '0.75rem', border: '1px solid var(--border-color)' }}
+                                    >
+                                      Edit Notes
+                                    </button>
+                                  </div>
+                                  <p style={{ margin: 0, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                                    {topic.notes || 'No complexity bounds, formulas, or cheat sheets noted yet. Click Edit Notes to add key details.'}
+                                  </p>
+                                </div>
+
+                                {/* Subtopics nested progress list */}
+                                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-secondary)' }}>Nested Concepts / LeetCode Tasks</span>
+                                    {totalSubs > 0 && (
+                                      <span style={{ fontSize: '0.8rem', color: 'var(--secondary)' }}>
+                                        {progressPercent}% Complete
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Subtopics items checklist */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                                    {topic.subtopics && topic.subtopics.map(sub => (
+                                      <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                          <input 
+                                            type="checkbox"
+                                            checked={sub.status === 'Completed'}
+                                            onChange={() => handleToggleSubtopic(sub.id, sub.status, topic.id)}
+                                            style={{ cursor: 'pointer' }}
+                                          />
+                                          <span style={{ 
+                                            fontSize: '0.85rem', 
+                                            color: sub.status === 'Completed' ? 'var(--text-muted)' : '#fff',
+                                            textDecoration: sub.status === 'Completed' ? 'line-through' : 'none'
+                                          }}>
+                                            {sub.name}
+                                          </span>
+                                        </div>
+                                        <button 
+                                          onClick={() => handleDeleteSubtopic(sub.id, topic.id)}
+                                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '2px' }}
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      </div>
+                                    ))}
+
+                                    {totalSubs === 0 && (
+                                      <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                        No nested subtopics or checklist items. Add one below to build your revision map.
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Add Subtopic form */}
+                                  {selectedTopicForSubtopic === topic.id ? (
+                                    <form 
+                                      onSubmit={(e) => handleCreateSubtopic(e, topic.id)} 
+                                      style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '400px' }}
+                                    >
+                                      <input 
+                                        type="text" 
+                                        className="form-input" 
+                                        placeholder="e.g. Sliding window, Two-pointer..."
+                                        value={newSubtopicName}
+                                        onChange={(e) => setNewSubtopicName(e.target.value)}
+                                        style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '6px 10px', borderRadius: '4px', flex: 1, fontSize: '0.8rem' }}
+                                        autoFocus
+                                      />
+                                      <button type="submit" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Add</button>
+                                      <button type="button" onClick={() => setSelectedTopicForSubtopic(null)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Cancel</button>
+                                    </form>
+                                  ) : (
+                                    <button 
+                                      onClick={() => setSelectedTopicForSubtopic(topic.id)} 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: '6px 12px', fontSize: '0.8rem', border: '1px dashed var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                      <Plus size={12} /> Add Nested Concept / LeetCode Task
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {techTopics.length === 0 && (
+                            <div className="glass-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                              No topics created in this niche. Add your first learning topic above!
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                        Select or create a Technical Niche in the sidebar to start tracking interview concepts.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notes Editing Modal */}
+                {editingNotesTopic && (
+                  <div className="modal-backdrop" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div className="glass-card animate-fade-in" style={{ width: '100%', maxWidth: '600px', padding: '24px', border: '1px solid var(--primary)', textAlign: 'left' }}>
+                      <h4 style={{ color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        📝 Edit Notes: {editingNotesTopic.name}
+                      </h4>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                        Add key complexities, code snippets, or cheat sheet references here.
+                      </p>
+                      <textarea 
+                        rows={8}
+                        className="form-input" 
+                        value={editingNotesText} 
+                        onChange={(e) => setEditingNotesText(e.target.value)}
+                        style={{ width: '100%', background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '12px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.9rem', marginBottom: '16px', lineHeight: '1.5' }}
+                        placeholder="e.g. Sliding window approach. Time complexity O(N), space complexity O(1)."
+                      />
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => { setEditingNotesTopic(null); setEditingNotesText(''); }} className="btn btn-secondary" style={{ padding: '8px 16px' }}>Cancel</button>
+                        <button onClick={handleSaveTopicNotes} className="btn btn-primary" style={{ padding: '8px 16px' }}>Save Notes</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
