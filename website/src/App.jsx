@@ -70,6 +70,7 @@ function App() {
   const [clientCurrency, setClientCurrency] = useState('USD');
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [selectedPricingTier, setSelectedPricingTier] = useState('monthly'); // 'monthly', 'yearly', 'onetime'
 
   // Admin Custom Scraper Command States
@@ -305,12 +306,12 @@ function App() {
 
   // Auto-advancing templates carousel
   useEffect(() => {
-    if (currentPage !== 'home') return;
+    if (currentPage !== 'home' || isCarouselPaused) return;
     const interval = setInterval(() => {
       setCarouselIndex(prev => (prev === templatesData.length - 1 ? 0 : prev + 1));
     }, 5000);
     return () => clearInterval(interval);
-  }, [currentPage, templatesData.length]);
+  }, [currentPage, templatesData.length, isCarouselPaused]);
 
   const renderPrice = (key, tier) => {
     const conf = pricingConfigs.find(c => c.template_key === key);
@@ -336,6 +337,25 @@ function App() {
     }
 
     return `$${Math.round(finalPrice).toLocaleString()}${suffix}`;
+  };
+
+  const renderOriginalPrice = (key, tier) => {
+    const conf = pricingConfigs.find(c => c.template_key === key);
+    if (!conf) return '';
+    let basePrice = 0;
+    if (tier === 'monthly') {
+      basePrice = parseFloat(conf.base_price_monthly);
+    } else if (tier === 'six_months') {
+      basePrice = parseFloat(conf.base_price_six_months || (parseFloat(conf.base_price_monthly) * 6 * 0.85));
+    } else if (tier === 'yearly') {
+      basePrice = parseFloat(conf.base_price_yearly);
+    } else {
+      basePrice = parseFloat(conf.base_price_one_time);
+    }
+    
+    const markupPrice = basePrice * 1.35; // 35% default markup for original price comparison
+    const finalOriginalPrice = markupPrice * priceMultiplier;
+    return `$${Math.round(finalOriginalPrice).toLocaleString()}`;
   };
 
   // Fetch CRM Data
@@ -1461,8 +1481,13 @@ function App() {
                     border: `1px solid ${templatesData[carouselIndex].color.replace('0.15', '0.3')}`,
                     padding: '32px',
                     minHeight: '340px',
-                    position: 'relative'
+                    position: 'relative',
+                    cursor: 'pointer'
                   }}
+                  onMouseEnter={() => setIsCarouselPaused(true)}
+                  onMouseLeave={() => setIsCarouselPaused(false)}
+                  onTouchStart={() => setIsCarouselPaused(true)}
+                  onTouchEnd={() => setIsCarouselPaused(false)}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '20px' }}>
                     <div>
@@ -1473,8 +1498,13 @@ function App() {
                     </div>
                     
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--secondary)' }}>
-                        {renderPrice(templatesData[carouselIndex].key, selectedPricingTier)}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textDecoration: 'line-through', fontWeight: '500' }}>
+                          Was {renderOriginalPrice(templatesData[carouselIndex].key, selectedPricingTier)}
+                        </span>
+                        <span style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--secondary)' }}>
+                          Now {renderPrice(templatesData[carouselIndex].key, selectedPricingTier)}
+                        </span>
                       </div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {selectedPricingTier === 'monthly' ? 'per month' : selectedPricingTier === 'six_months' ? 'for 6 months' : selectedPricingTier === 'yearly' ? 'billed annually' : 'one-time purchase'}
