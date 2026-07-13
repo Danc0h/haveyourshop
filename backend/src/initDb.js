@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS pricing_configs (
   template_key VARCHAR(50) NOT NULL UNIQUE,
   base_price_one_time DECIMAL(10,2) NOT NULL,
   base_price_yearly DECIMAL(10,2) NOT NULL,
+  base_price_six_months DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   base_price_monthly DECIMAL(10,2) NOT NULL,
   local_discount_multiplier DECIMAL(3,2) DEFAULT 0.40,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -128,15 +129,18 @@ CREATE TABLE IF NOT EXISTS acquisition_targets (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Ensure base_price_six_months column exists before seeding
+ALTER TABLE pricing_configs ADD COLUMN IF NOT EXISTS base_price_six_months DECIMAL(10,2) DEFAULT 0.00;
+
 -- Seed defaults
-INSERT INTO pricing_configs (template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier)
+INSERT INTO pricing_configs (template_key, base_price_one_time, base_price_yearly, base_price_six_months, base_price_monthly, local_discount_multiplier)
 VALUES 
-  ('business_website', 1499.00, 999.00, 99.00, 0.40),
-  ('ecommerce_platform', 3499.00, 2399.00, 199.00, 0.40),
-  ('restaurant_platform', 2499.00, 1799.00, 149.00, 0.40),
-  ('booking_system', 1999.00, 1399.00, 119.00, 0.40),
-  ('clinic_mgmt', 4499.00, 2999.00, 249.00, 0.40),
-  ('real_estate_hotel', 5999.00, 3999.00, 349.00, 0.40)
+  ('business_website', 1499.00, 999.00, 499.00, 99.00, 0.40),
+  ('ecommerce_platform', 3499.00, 2399.00, 999.00, 199.00, 0.40),
+  ('restaurant_platform', 2499.00, 1799.00, 749.00, 149.00, 0.40),
+  ('booking_system', 1999.00, 1399.00, 599.00, 119.00, 0.40),
+  ('clinic_mgmt', 4499.00, 2999.00, 1249.00, 249.00, 0.40),
+  ('real_estate_hotel', 5999.00, 3999.00, 1749.00, 349.00, 0.40)
 ON CONFLICT (template_key) DO NOTHING;
 
 -- Migrations/Alter statements for existing schemas
@@ -144,6 +148,8 @@ ALTER TABLE client_leads ADD COLUMN IF NOT EXISTS social_media_url VARCHAR(255);
 ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
 ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS posted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE scholarship_listings ADD COLUMN IF NOT EXISTS how_to_apply TEXT;
+ALTER TABLE pricing_configs ADD COLUMN IF NOT EXISTS base_price_six_months DECIMAL(10,2) DEFAULT 0.00;
+UPDATE pricing_configs SET base_price_six_months = base_price_monthly * 6 * 0.85 WHERE base_price_six_months IS NULL OR base_price_six_months = 0.00;
 
 -- 5. Tech Niches Table
 CREATE TABLE IF NOT EXISTS tech_niches (

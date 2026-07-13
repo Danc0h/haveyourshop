@@ -1040,17 +1040,18 @@ app.get('/api/crm/pricing-configs', async (req, res) => {
 });
 
 app.post('/api/crm/pricing-configs', async (req, res) => {
-  const { template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier } = req.body;
+  const { template_key, base_price_one_time, base_price_yearly, base_price_six_months, base_price_monthly, local_discount_multiplier } = req.body;
   try {
     await db.query(`
-      INSERT INTO pricing_configs (template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO pricing_configs (template_key, base_price_one_time, base_price_yearly, base_price_six_months, base_price_monthly, local_discount_multiplier)
+      VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (template_key) DO UPDATE SET
         base_price_one_time = EXCLUDED.base_price_one_time,
         base_price_yearly = EXCLUDED.base_price_yearly,
+        base_price_six_months = EXCLUDED.base_price_six_months,
         base_price_monthly = EXCLUDED.base_price_monthly,
         local_discount_multiplier = EXCLUDED.local_discount_multiplier;
-    `, [template_key, base_price_one_time, base_price_yearly, base_price_monthly, local_discount_multiplier]);
+    `, [template_key, base_price_one_time, base_price_yearly, base_price_six_months, base_price_monthly, local_discount_multiplier]);
     res.json({ success: true, message: `Pricing configuration updated for ${template_key}.` });
   } catch (err) {
     res.status(500).json({ error: err.message });

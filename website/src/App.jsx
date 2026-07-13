@@ -180,14 +180,10 @@ function App() {
         if (res.ok) {
           const data = await res.json();
           setClientCountry(data.country || 'US');
-          if (data.country === 'AE') {
-            setClientCurrency('AED');
-            setPriceMultiplier(1.0);
-          } else if (['KE', 'NG', 'TZ', 'UG', 'RW', 'ZA'].includes(data.country)) {
-            setClientCurrency('KES');
-            setPriceMultiplier(0.40);
+          setClientCurrency('USD'); // Always USD
+          if (['KE', 'NG', 'TZ', 'UG', 'RW', 'ZA'].includes(data.country)) {
+            setPriceMultiplier(0.40); // 60% regional discount
           } else {
-            setClientCurrency('USD');
             setPriceMultiplier(1.0);
           }
         }
@@ -222,34 +218,58 @@ function App() {
       duration: '5 Days Launch',
       color: 'rgba(6, 182, 212, 0.15)',
       badgeColor: 'var(--secondary)',
-      tags: ['React / Vite', 'Vanilla CSS', 'Responsive Grid', 'Local SEO']
+      features: [
+        'Brand credibility custom layout design',
+        'SEO-optimized meta tags & markup structure',
+        'Interactive lead capture & contact forms',
+        'Fully responsive design for all screen resolutions',
+        'Integrated company blog & content directory'
+      ]
     },
     {
       key: 'ecommerce_platform',
       title: 'SupaCart E-Commerce Platform',
-      description: 'High-speed storefront with custom shopping cart drawers, catalog filtering, mobile-friendly checkouts, and M-Pesa/PayPal payment gateway integrations.',
+      description: 'High-speed storefront with custom shopping cart drawers, catalog filtering, mobile-friendly checkouts, and payment gateway integrations.',
       duration: '6 Days Launch',
       color: 'rgba(139, 92, 246, 0.15)',
       badgeColor: 'var(--primary)',
-      tags: ['React Redux', 'Node.js / Express', 'M-Pesa API', 'PostgreSQL']
+      features: [
+        'Interactive sliding cart & drawer experience',
+        'Advanced catalog search, sort & filters',
+        'Multi-gateway payment support (PayPal, Cards, M-Pesa)',
+        'Low-stock inventory tracking alerts',
+        'Sales analytics & admin reporting dashboard'
+      ]
     },
     {
       key: 'restaurant_platform',
       title: 'Restaurant Ordering Platform',
-      description: 'Interactive digital menus, table reservation modules, real-time kitchen order tracking, and mobile M-Pesa payments for seamless dining experiences.',
+      description: 'Interactive digital menus, table reservation modules, real-time kitchen order tracking, and mobile payments for seamless dining experiences.',
       duration: '5 Days Launch',
       color: 'rgba(234, 179, 8, 0.15)',
       badgeColor: '#eab308',
-      tags: ['Web Sockets', 'React.js', 'Express API', 'Twilio Alerts']
+      features: [
+        'Digital QR-code menu directories',
+        'Online table reservation calendar',
+        'Real-time kitchen order dispatch console',
+        'Automated order confirmation billing validation',
+        'SMS delivery driver notification webhooks'
+      ]
     },
     {
       key: 'booking_system',
       title: 'Appointment Booking System',
-      description: 'Ideal for consultants, agencies, and hair salons. Calendar slot allocations, confirmation notifications, and automated email webhook reminders.',
+      description: 'Ideal for consultants, agencies, and service centers. Calendar slot allocations, confirmation notifications, and automated email webhook reminders.',
       duration: '4 Days Launch',
       color: 'rgba(236, 72, 153, 0.15)',
       badgeColor: 'var(--accent)',
-      tags: ['Google Calendar Sync', 'NodeMailer', 'PostgreSQL']
+      features: [
+        'Dynamic interactive booking calendar scheduler',
+        'Roster scheduling for individual consultants',
+        'Automated confirmation email/SMS reminders',
+        'Customer secure profile dashboard portal',
+        'Two-way sync with Google Calendar API'
+      ]
     },
     {
       key: 'clinic_mgmt',
@@ -258,7 +278,13 @@ function App() {
       duration: '7 Days Launch',
       color: 'rgba(16, 185, 129, 0.15)',
       badgeColor: 'var(--secondary)',
-      tags: ['HIPAA Compliant Web', 'React Router', 'Neon DB']
+      features: [
+        'Patient digital onboarding registration flow',
+        'AI clinic assistant chatbot integration',
+        'Doctor scheduling rosters & availability slots',
+        'HIPAA-compliant EHR clinical charts logs',
+        'E-prescription & drug inventory records billing'
+      ]
     },
     {
       key: 'real_estate_hotel',
@@ -267,27 +293,49 @@ function App() {
       duration: '7 Days Launch',
       color: 'rgba(239, 68, 68, 0.15)',
       badgeColor: '#ef4444',
-      tags: ['Vite / CSS Grid', 'Direct Messaging API', 'PostgreSQL']
+      features: [
+        'Real estate property/hotel room catalog lists',
+        'Interactive map layout filtering integrations',
+        'Direct booking reservation checkout engines',
+        'Channel manager syncing (Airbnb, Booking.com)',
+        'Guest invoice generator & billing ledger tracker'
+      ]
     }
   ];
+
+  // Auto-advancing templates carousel
+  useEffect(() => {
+    if (currentPage !== 'home') return;
+    const interval = setInterval(() => {
+      setCarouselIndex(prev => (prev === templatesData.length - 1 ? 0 : prev + 1));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [currentPage, templatesData.length]);
 
   const renderPrice = (key, tier) => {
     const conf = pricingConfigs.find(c => c.template_key === key);
     if (!conf) return '';
     let basePrice = 0;
-    if (tier === 'monthly') basePrice = parseFloat(conf.base_price_monthly);
-    else if (tier === 'yearly') basePrice = parseFloat(conf.base_price_yearly);
-    else basePrice = parseFloat(conf.base_price_one_time);
+    if (tier === 'monthly') {
+      basePrice = parseFloat(conf.base_price_monthly);
+    } else if (tier === 'six_months') {
+      basePrice = parseFloat(conf.base_price_six_months || (parseFloat(conf.base_price_monthly) * 6 * 0.85));
+    } else if (tier === 'yearly') {
+      basePrice = parseFloat(conf.base_price_yearly);
+    } else {
+      basePrice = parseFloat(conf.base_price_one_time);
+    }
 
     const finalPrice = basePrice * priceMultiplier;
+    const isDiscountActive = priceMultiplier < 1.0;
+    const discountPercent = Math.round((1 - priceMultiplier) * 100);
     
-    if (clientCurrency === 'KES') {
-      return `KES ${Math.round(finalPrice * 130).toLocaleString()}`;
+    let suffix = '';
+    if (isDiscountActive) {
+      suffix = ` (${discountPercent}% off)`;
     }
-    if (clientCurrency === 'AED') {
-      return `AED ${Math.round(finalPrice * 3.67).toLocaleString()}`;
-    }
-    return `$${Math.round(finalPrice).toLocaleString()}`;
+
+    return `$${Math.round(finalPrice).toLocaleString()}${suffix}`;
   };
 
   // Fetch CRM Data
@@ -635,7 +683,7 @@ function App() {
       setSelectedScholarship({
         ...sch,
         sop_text: isAdvisor 
-          ? `Subject: Prospective MSc Student Inquiry - CS Systems Lab\n\nDear Professor,\n\nI am a software engineering graduate with hands-on systems architect experience at TerraQuant and SME automation projects at Have Your Shop Online. I would love to join your research group...\n\nBest,\nDancun Kipkorir`
+          ? `Subject: Prospective MSc Student Inquiry - CS Systems Lab\n\nDear Professor,\n\nI am a software engineering graduate with hands-on systems architect experience at TerraQuant and SME automation projects at Have Your Business Online. I would love to join your research group...\n\nBest,\nDancun Kipkorir`
           : `STATEMENT OF PURPOSE\n\nI am applying for the ${sch.program_name} at ${sch.institution}. My SWE background at Kisii, TerraQuant architectures, and SME business automations prepare me...`
       });
     } finally {
@@ -1245,9 +1293,9 @@ function App() {
         <div className="container flex-between" style={{ height: '70px' }}>
           <div className="flex-center" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('home')}>
             <div className="logo-icon flex-center">
-              <ShoppingBag size={16} color="#fff" />
+              <Globe size={16} color="#fff" />
             </div>
-            <span className="footer-logo text-gradient" style={{ fontWeight: '800' }}>Have Your Shop Online</span>
+            <span className="footer-logo text-gradient" style={{ fontWeight: '800' }}>Have Your Business Online</span>
           </div>
 
           {/* Desktop Navigation Links */}
@@ -1314,10 +1362,10 @@ function App() {
             <section className="section container hero-section">
               <span className="badge">Next-Gen Software Development</span>
               <h1 style={{ maxWidth: '900px', margin: '0 auto' }}>
-                We Build Digital Shops, Mobile Apps & <span className="text-gradient">AI Automations</span>
+                We Bring Your Business Online with Custom Apps & <span className="text-gradient">AI Automations</span>
               </h1>
               <p className="hero-subtitle">
-                Helping businesses transition from manual workflows to scalable digital presence. High-performance software engineering tailored for ROI.
+                Helping businesses transition from manual workflows to scalable custom software. High-performance software engineering tailored for digital growth.
               </p>
               <div className="hero-buttons">
                 <button onClick={() => handleNavClick('contact')} className="btn btn-primary">
@@ -1377,8 +1425,8 @@ function App() {
 
               {/* Pricing Tier Selector */}
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px', border: '1px solid var(--border-color)' }}>
-                  {['monthly', 'yearly', 'onetime'].map(tier => (
+                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px', border: '1px solid var(--border-color)', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {['monthly', 'six_months', 'yearly', 'onetime'].map(tier => (
                     <button
                       key={tier}
                       onClick={() => setSelectedPricingTier(tier)}
@@ -1391,59 +1439,28 @@ function App() {
                         cursor: 'pointer',
                         fontSize: '0.85rem',
                         fontWeight: '600',
-                        textTransform: 'capitalize',
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      {tier === 'onetime' ? 'One-time Payment' : `${tier} billing`}
+                      {tier === 'onetime' ? 'One-time Payment' : tier === 'six_months' ? '6-Month Plan' : `${tier.replace('_', ' ')} billing`}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Active Template Carousel Selector Tabs */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
-                {templatesData.map((tmpl, idx) => (
-                  <button
-                    key={tmpl.key}
-                    onClick={() => setCarouselIndex(idx)}
-                    style={{
-                      padding: '8px 14px',
-                      borderRadius: '20px',
-                      border: `1px solid ${carouselIndex === idx ? 'var(--primary)' : 'var(--border-color)'}`,
-                      background: carouselIndex === idx ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-                      color: carouselIndex === idx ? 'var(--primary)' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem',
-                      fontWeight: '700',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {tmpl.title.split(' ')[0]} {tmpl.title.split(' ')[1]}
-                  </button>
-                ))}
-              </div>
-
               {/* Slider View */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', position: 'relative' }}>
-                <button
-                  onClick={() => setCarouselIndex(prev => (prev === 0 ? templatesData.length - 1 : prev - 1))}
-                  className="btn btn-secondary"
-                  style={{ borderRadius: '50%', width: '48px', height: '48px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '48px' }}
-                >
-                  <ChevronLeft size={20} />
-                </button>
-
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', position: 'relative' }}>
                 <div 
                   className="glass-card animate-fade-in" 
                   style={{ 
-                    flex: 1, 
+                    width: '100%',
+                    maxWidth: '800px',
                     display: 'flex', 
                     flexDirection: 'column', 
                     textAlign: 'left', 
                     border: `1px solid ${templatesData[carouselIndex].color.replace('0.15', '0.3')}`,
                     padding: '32px',
-                    minHeight: '280px',
+                    minHeight: '340px',
                     position: 'relative'
                   }}
                 >
@@ -1460,7 +1477,7 @@ function App() {
                         {renderPrice(templatesData[carouselIndex].key, selectedPricingTier)}
                       </div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {selectedPricingTier === 'monthly' ? 'per month' : selectedPricingTier === 'yearly' ? 'billed annually' : 'one-time purchase'}
+                        {selectedPricingTier === 'monthly' ? 'per month' : selectedPricingTier === 'six_months' ? 'for 6 months' : selectedPricingTier === 'yearly' ? 'billed annually' : 'one-time purchase'}
                       </div>
                     </div>
                   </div>
@@ -1469,44 +1486,23 @@ function App() {
                     {templatesData[carouselIndex].description}
                   </p>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {templatesData[carouselIndex].tags.map(tag => (
-                        <span key={tag} className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>{tag}</span>
+                  <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <strong style={{ color: 'var(--primary)', fontSize: '0.9rem' }}>💡 Key Business Capabilities:</strong>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {templatesData[carouselIndex].features.map(f => (
+                        <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                          <CheckCircle2 size={14} color="var(--secondary)" /> {f}
+                        </li>
                       ))}
-                    </div>
-                    
+                    </ul>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
                     <button onClick={() => handleNavClick('contact')} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
                       Select Template <ArrowRight size={14} />
                     </button>
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setCarouselIndex(prev => (prev === templatesData.length - 1 ? 0 : prev + 1))}
-                  className="btn btn-secondary"
-                  style={{ borderRadius: '50%', width: '48px', height: '48px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '48px' }}
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-
-              {/* Slider Dots */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '20px' }}>
-                {templatesData.map((_, idx) => (
-                  <span
-                    key={idx}
-                    onClick={() => setCarouselIndex(idx)}
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: carouselIndex === idx ? 'var(--primary)' : 'var(--border-color)',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s ease'
-                    }}
-                  />
-                ))}
               </div>
             </section>
           </div>
@@ -1522,9 +1518,9 @@ function App() {
             </div>
             <div className="grid-cols-2" style={{ gap: '32px' }}>
               <div className="glass-card">
-                <div className="feature-icon"><ShoppingBag size={24} /></div>
-                <h3>E-Commerce Development</h3>
-                <p>We construct custom digital shopping systems that load in milliseconds and deliver premium user experiences. Integrated with Stripe, PayPal, M-Pesa.</p>
+                <div className="feature-icon"><Zap size={24} /></div>
+                <h3>Custom Business Software</h3>
+                <p>We build tailored web applications, secure portals, and clinic or booking platforms that digitize offline tasks and automate scheduling.</p>
               </div>
               <div className="glass-card">
                 <div className="feature-icon cyan"><Globe size={24} /></div>
@@ -1537,7 +1533,7 @@ function App() {
                 <p>Bespoke React Native cross-platform applications published on iOS & Google App Stores with offline sync capabilities.</p>
               </div>
               <div className="glass-card">
-                <div className="feature-icon"><Zap size={24} /></div>
+                <div className="feature-icon"><TrendingUp size={24} /></div>
                 <h3>Business Automation Systems</h3>
                 <p>Scrapers, background worker scripts, and custom API connections designed to sync your CRM databases and spreadsheets.</p>
               </div>
@@ -1555,9 +1551,9 @@ function App() {
             </div>
             <div className="case-study-grid">
               <div className="glass-card case-study-card">
-                <div className="case-study-image text-gradient" style={{ fontWeight: '800', fontSize: '1.8rem' }}>SupaCart Shop</div>
-                <h3>Scaling E-Commerce Retail</h3>
-                <p>Migrated slow WooCommerce store to custom React/Node.js setup. Load times reduced from 5s to 1.2s, boost conversion by 140%.</p>
+                <div className="case-study-image text-gradient" style={{ fontWeight: '800', fontSize: '1.8rem' }}>Business Portal</div>
+                <h3>Scaling Business Operations</h3>
+                <p>Modernized slow legacy operational software into a unified custom cloud platform. Load times reduced by 75% and automated manual rosters.</p>
               </div>
               <div className="glass-card case-study-card">
                 <div className="case-study-image text-gradient-accent" style={{ fontWeight: '800', fontSize: '1.8rem' }}>PropLead Scraper</div>
@@ -1744,7 +1740,7 @@ function App() {
             <div className="glass-card" style={{ maxWidth: '420px', margin: '0 auto' }}>
               <h3 style={{ marginBottom: '16px' }}>CRM Portal Authentication</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                Secure access for Have Your Shop Online architects. Use the developer password to authenticate.
+                Secure access for Have Your Business Online architects. Use the developer password to authenticate.
               </p>
               <form onSubmit={handleAdminLogin}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
@@ -1899,9 +1895,6 @@ function App() {
                     <button onClick={() => { setShowImportFileModal(true); setImportFileNiche(scraperNiche); setImportFileCity(scraperCities[0] || 'Mombasa'); }} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', border: '1px solid var(--secondary)', display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <FileSpreadsheet size={14} color="var(--primary)" /> Import HTML/MHT Search File
                     </button>
-                    <button onClick={() => { setShowImportLeadText(true); setImportLeadNiche(scraperNiche); setImportLeadCity(scraperCities[0] || 'Mombasa'); }} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', border: '1px solid var(--secondary)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      <FileText size={14} color="var(--primary)" /> Import Copy-Paste Search
-                    </button>
                     <button onClick={() => setShowAddLead(true)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <Plus size={14} /> Add Lead Manually
                     </button>
@@ -1966,60 +1959,6 @@ function App() {
                         <button type="button" onClick={() => setShowImportFileModal(false)} className="btn btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {showImportLeadText && (
-                  <div className="glass-card animate-fade-in" style={{ marginBottom: '24px', padding: '24px', border: '1px solid var(--primary)', textAlign: 'left' }}>
-                    <h4 style={{ color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <FileText size={18} /> AI Copy-Paste Search Results Importer
-                    </h4>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
-                      To bypass search engine IP bans: search Google or Google Maps manually (e.g. <em>"Clinics in Mombasa"</em>), select and copy the search results page text (Ctrl+A & Ctrl+C), paste it below, and the AI will extract all business profiles & run digital audits!
-                    </p>
-                    <form onSubmit={handleImportLeadText} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <div className="grid-cols-2" style={{ gap: '16px' }}>
-                        <div className="form-group" style={{ margin: 0 }}>
-                          <label className="form-label">Niche Category</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="e.g. Clinics" 
-                            value={importLeadNiche} 
-                            onChange={(e) => setImportLeadNiche(e.target.value)} 
-                          />
-                        </div>
-                        <div className="form-group" style={{ margin: 0 }}>
-                          <label className="form-label">City Location</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="e.g. Mombasa" 
-                            value={importLeadCity} 
-                            onChange={(e) => setImportLeadCity(e.target.value)} 
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="form-group">
-                        <label className="form-label">Raw Pasted Browser Page Text</label>
-                        <textarea 
-                          className="form-textarea" 
-                          placeholder="Paste raw copied Google/Maps text here..." 
-                          value={importLeadText} 
-                          onChange={(e) => setImportLeadText(e.target.value)} 
-                          style={{ height: '180px', fontFamily: 'monospace', fontSize: '0.85rem', background: '#0a0b10' }}
-                          required
-                        />
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button type="submit" disabled={importingLeads} className="btn btn-primary" style={{ padding: '10px 20px' }}>
-                          {importingLeads ? 'AI Parsing & Auditing...' : 'Parse & Audit Listings'}
-                        </button>
-                        <button type="button" onClick={() => setShowImportLeadText(false)} className="btn btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
-                      </div>
-                    </form>
                   </div>
                 )}
 
@@ -2635,8 +2574,8 @@ function App() {
                         <div>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                             {selectedScholarship.funding_type?.toLowerCase().includes('advisor') 
-                              ? 'This email connects your academic background, your TerraQuant systems architect achievements, and your Have Your Shop Online automation projects to this professor\'s research group:'
-                              : 'This SOP links your Software Engineering degree, your architectural role at TerraQuant, and your Have Your Shop Online business automation work to demonstrate academic competence:'}
+                              ? 'This email connects your academic background, your TerraQuant systems architect achievements, and your Have Your Business Online automation projects to this professor\'s research group:'
+                              : 'This SOP links your Software Engineering degree, your architectural role at TerraQuant, and your Have Your Business Online business automation work to demonstrate academic competence:'}
                           </p>
                           <textarea 
                             value={selectedScholarship.sop_text || 'No document generated yet.'} 
@@ -2911,7 +2850,7 @@ function App() {
                         📋 {conf.template_key.replace('_', ' ')}
                       </h4>
                       
-                      <div className="grid-cols-4" style={{ gap: '16px', marginBottom: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                         <div className="form-group" style={{ margin: 0 }}>
                           <label className="form-label" style={{ fontSize: '0.8rem' }}>Monthly Subscription ($)</label>
                           <input 
@@ -2920,6 +2859,20 @@ function App() {
                             value={conf.base_price_monthly} 
                             onChange={(e) => {
                               const updated = pricingConfigs.map(c => c.template_key === conf.template_key ? { ...c, base_price_monthly: e.target.value } : c);
+                              setPricingConfigs(updated);
+                            }} 
+                            style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>6-Month Plan ($)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={conf.base_price_six_months || ''} 
+                            onChange={(e) => {
+                              const updated = pricingConfigs.map(c => c.template_key === conf.template_key ? { ...c, base_price_six_months: e.target.value } : c);
                               setPricingConfigs(updated);
                             }} 
                             style={{ background: '#12131a', border: '1px solid var(--border-color)', color: '#fff', padding: '8px', borderRadius: '4px' }}
@@ -3335,12 +3288,12 @@ function App() {
             <div>
               <div className="flex-center" style={{ justifyContent: 'flex-start', marginBottom: '20px' }}>
                 <div className="logo-icon flex-center">
-                  <ShoppingBag size={16} color="#fff" />
+                  <Globe size={16} color="#fff" />
                 </div>
-                <span className="footer-logo text-gradient">Have Your Shop Online</span>
+                <span className="footer-logo text-gradient">Have Your Business Online</span>
               </div>
               <p style={{ fontSize: '0.9rem' }}>
-                Premium custom e-commerce stores, native iOS & Android applications, and workflow AI automation services designed to grow your business efficiency.
+                Premium custom web portals, native mobile applications, and workflow AI automation services designed to bring your business online and grow operational efficiency.
               </p>
             </div>
             
@@ -3358,10 +3311,10 @@ function App() {
             <div>
               <h4 style={{ marginBottom: '20px', fontSize: '1rem' }}>Contact Info</h4>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Mail size={14} /> hello@haveyourshop.online
+                <Mail size={14} /> hello@haveyourbusiness.online
               </p>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Globe size={14} /> dancunsoftwares.online
+                <Globe size={14} /> haveyourbusiness.online
               </p>
               <p style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <MapPin size={14} /> Remote (Global Services)
@@ -3379,7 +3332,7 @@ function App() {
             fontSize: '0.85rem',
             color: 'var(--text-muted)'
           }}>
-            <span>© {new Date().getFullYear()} Have Your Shop Online. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} Have Your Business Online. All rights reserved.</span>
             <div style={{ display: 'flex', gap: '20px' }}>
               <span>B.Sc Software Engineering Powered</span>
               <span>•</span>

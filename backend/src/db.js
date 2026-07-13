@@ -137,12 +137,12 @@ const mockDb = {
     }
   ],
   pricing_configs: [
-    { template_key: 'business_website', base_price_one_time: 1499.00, base_price_yearly: 999.00, base_price_monthly: 99.00, local_discount_multiplier: 0.40 },
-    { template_key: 'ecommerce_platform', base_price_one_time: 3499.00, base_price_yearly: 2399.00, base_price_monthly: 199.00, local_discount_multiplier: 0.40 },
-    { template_key: 'restaurant_platform', base_price_one_time: 2499.00, base_price_yearly: 1799.00, base_price_monthly: 149.00, local_discount_multiplier: 0.40 },
-    { template_key: 'booking_system', base_price_one_time: 1999.00, base_price_yearly: 1399.00, base_price_monthly: 119.00, local_discount_multiplier: 0.40 },
-    { template_key: 'clinic_mgmt', base_price_one_time: 4499.00, base_price_yearly: 2999.00, base_price_monthly: 249.00, local_discount_multiplier: 0.40 },
-    { template_key: 'real_estate_hotel', base_price_one_time: 5999.00, base_price_yearly: 3999.00, base_price_monthly: 349.00, local_discount_multiplier: 0.40 }
+    { template_key: 'business_website', base_price_one_time: 1499.00, base_price_yearly: 999.00, base_price_six_months: 499.00, base_price_monthly: 99.00, local_discount_multiplier: 0.40 },
+    { template_key: 'ecommerce_platform', base_price_one_time: 3499.00, base_price_yearly: 2399.00, base_price_six_months: 999.00, base_price_monthly: 199.00, local_discount_multiplier: 0.40 },
+    { template_key: 'restaurant_platform', base_price_one_time: 2499.00, base_price_yearly: 1799.00, base_price_six_months: 749.00, base_price_monthly: 149.00, local_discount_multiplier: 0.40 },
+    { template_key: 'booking_system', base_price_one_time: 1999.00, base_price_yearly: 1399.00, base_price_six_months: 599.00, base_price_monthly: 119.00, local_discount_multiplier: 0.40 },
+    { template_key: 'clinic_mgmt', base_price_one_time: 4499.00, base_price_yearly: 2999.00, base_price_six_months: 1249.00, base_price_monthly: 249.00, local_discount_multiplier: 0.40 },
+    { template_key: 'real_estate_hotel', base_price_one_time: 5999.00, base_price_yearly: 3999.00, base_price_six_months: 1749.00, base_price_monthly: 349.00, local_discount_multiplier: 0.40 }
   ],
   tech_niches: [
     { id: 'niche-dsa', name: 'Data Structures & Algorithms', description: 'Mastering problem solving, complexities, and typical patterns for DSA interviews.' },
@@ -426,13 +426,14 @@ async function queryMock(text, params = []) {
 
   // 11c. UPDATE pricing_configs
   if (cleanText.includes('update pricing_configs')) {
-    const key = params[4];
+    const key = params[5];
     const conf = mockDb.pricing_configs.find(c => c.template_key === key);
     if (conf) {
       conf.base_price_one_time = parseFloat(params[0]);
       conf.base_price_yearly = parseFloat(params[1]);
-      conf.base_price_monthly = parseFloat(params[2]);
-      conf.local_discount_multiplier = parseFloat(params[3]);
+      conf.base_price_six_months = parseFloat(params[2]);
+      conf.base_price_monthly = parseFloat(params[3]);
+      conf.local_discount_multiplier = parseFloat(params[4]);
       return { rows: [conf] };
     }
   }
