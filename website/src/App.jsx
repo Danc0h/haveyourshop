@@ -1382,7 +1382,7 @@ function App() {
             <section className="section container hero-section">
               <span className="badge">Next-Gen Software Development</span>
               <h1 style={{ maxWidth: '900px', margin: '0 auto' }}>
-                We Bring Your Business Online with Custom Apps & <span className="text-gradient">AI Automations</span>
+                We Bring Your Business Online with Custom Software Systems & <span className="text-gradient">AI Automations</span>
               </h1>
               <p className="hero-subtitle">
                 Helping businesses transition from manual workflows to scalable custom software. High-performance software engineering tailored for digital growth.
@@ -1418,8 +1418,8 @@ function App() {
               <div className="grid-cols-3">
                 <div className="glass-card">
                   <div className="feature-icon"><ShoppingBag size={24} /></div>
-                  <h3>E-Commerce Shops</h3>
-                  <p>Stunning, highly optimized custom shops and automated e-commerce stores designed to maximize conversions and customer retention.</p>
+                  <h3>Enterprice Grade Business Systems</h3>
+                  <p>We build stunning, highly optimized custom business systems ranging from E-commerce to Automated Softwares,aiming to maximize conversions and customer retention.</p>
                 </div>
                 <div className="glass-card">
                   <div className="feature-icon cyan"><Smartphone size={24} /></div>
@@ -1437,10 +1437,34 @@ function App() {
             <section className="section container" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '60px' }}>
               <div className="section-header">
                 <span className="badge badge-secondary">Ready Storefronts</span>
-                <h2>Explore Pre-Built Templates</h2>
+                <h2>Explore  <span className="text-gradient">Free templates</span></h2>
                 <p className="section-subtitle">
-                  We maintain a catalog of pre-engineered digital templates. Select a template and pricing plan to explore.
+                  Request our software templates regarding your business interests ! Whether you're in Real Estate, Health , Hotel & Restaurant or any other business industry, we got you covered ! Reach Out for free Templates!
                 </p>
+              </div>
+
+              {/* Template Quick Jump Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '24px' }}>
+                {templatesData.map((tmpl, idx) => (
+                  <button
+                    key={tmpl.key}
+                    onClick={() => setCarouselIndex(idx)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      border: `1px solid ${carouselIndex === idx ? 'var(--primary)' : 'var(--border-color)'}`,
+                      background: carouselIndex === idx ? 'rgba(139, 92, 246, 0.15)' : 'rgba(255,255,255,0.02)',
+                      color: carouselIndex === idx ? '#fff' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: '700',
+                      transition: 'all 0.2s ease',
+                      boxShadow: carouselIndex === idx ? '0 0 12px rgba(139, 92, 246, 0.2)' : 'none'
+                    }}
+                  >
+                    {tmpl.title}
+                  </button>
+                ))}
               </div>
 
               {/* Pricing Tier Selector */}
@@ -1529,7 +1553,7 @@ function App() {
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
                     <button onClick={() => handleNavClick('contact')} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                      Select Template <ArrowRight size={14} />
+                      Free Template <ArrowRight size={14} />
                     </button>
                   </div>
                 </div>
@@ -1584,11 +1608,6 @@ function App() {
                 <div className="case-study-image text-gradient" style={{ fontWeight: '800', fontSize: '1.8rem' }}>Business Portal</div>
                 <h3>Scaling Business Operations</h3>
                 <p>Modernized slow legacy operational software into a unified custom cloud platform. Load times reduced by 75% and automated manual rosters.</p>
-              </div>
-              <div className="glass-card case-study-card">
-                <div className="case-study-image text-gradient-accent" style={{ fontWeight: '800', fontSize: '1.8rem' }}>PropLead Scraper</div>
-                <h3>Sourcing 2,500 qualified leads/week</h3>
-                <p>Automated crawler scans Google Maps, scores leads based on website presence gaps, and syncs directly to client database.</p>
               </div>
             </div>
           </div>
@@ -1720,14 +1739,21 @@ function App() {
                   <div className="contact-method-icon"><Mail size={18} /></div>
                   <div>
                     <h4>Email</h4>
-                    <p>hello@haveyourshop.online</p>
+                    <p>info.haveyourbusinessonline@gmail.com</p>
+                  </div>
+                </div>
+                <div className="contact-method">
+                  <div className="contact-method-icon"><Phone size={18} /></div>
+                  <div>
+                    <h4>WhatsApp Business</h4>
+                    <p><a href="https://wa.me/13022039218" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>+1 (302) 203-9218</a></p>
                   </div>
                 </div>
                 <div className="contact-method">
                   <div className="contact-method-icon"><Globe size={18} /></div>
                   <div>
-                    <h4>Portfolio</h4>
-                    <p>dancunsoftwares.online</p>
+                    <h4>Website</h4>
+                    <p>www.haveyourbusiness.online</p>
                   </div>
                 </div>
               </div>
@@ -1752,9 +1778,23 @@ function App() {
                       <label className="form-label">Requested Service</label>
                       <select className="form-input" value={formData.service} onChange={(e)=>setFormData({...formData, service:e.target.value})} style={{ background: '#0f111a', color: '#fff' }}>
                         <option value="ecommerce">E-Commerce Development</option>
-                        <option value="automation">Workflow Automation</option>
-                        <option value="ai">Bespoke AI Agents</option>
+                        <option value="ecommerce">Custom and Personal Business Website</option>
+                        <option value="automation">Appointment Booking System </option>
+                        <option value="ai">Clinic Management System</option>
+                        <option value="ecommerce">Real Estate & Rental System</option>
+                        <option value="automation">Restaurant & Hotel System</option>
+                        
                       </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Extra Explanation / Requirements (Optional)</label>
+                      <textarea 
+                        className="form-input" 
+                        value={formData.message} 
+                        onChange={(e)=>setFormData({...formData, message:e.target.value})} 
+                        style={{ background: '#0f111a', color: '#fff', height: '100px', resize: 'vertical' }}
+                        placeholder="Tell us more about your business needs or the features you want..."
+                      />
                     </div>
                     <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Submit Request</button>
                   </form>
@@ -3341,10 +3381,13 @@ function App() {
             <div>
               <h4 style={{ marginBottom: '20px', fontSize: '1rem' }}>Contact Info</h4>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Mail size={14} /> hello@haveyourbusiness.online
+                <Mail size={14} /> info.haveyourbusinessonline@gmail.com
               </p>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Globe size={14} /> haveyourbusiness.online
+                <Phone size={14} /> <a href="https://wa.me/13022039218" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>+1 (302) 203-9218 (WhatsApp)</a>
+              </p>
+              <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Globe size={14} /> www.haveyourbusiness.online
               </p>
               <p style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <MapPin size={14} /> Remote (Global Services)
