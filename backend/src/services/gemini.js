@@ -11,6 +11,7 @@ const apiKeys = [
 
 let isMockAI = apiKeys.length === 0;
 let keyIndex = 0;
+const aiClient = apiKeys.length > 0 ? new GoogleGenerativeAI(apiKeys[0]) : null;
 
 if (isMockAI) {
   console.log('⚠️ No Gemini API keys found. Running in MOCK AI mode.');
