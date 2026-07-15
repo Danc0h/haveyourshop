@@ -36,8 +36,8 @@ const API_URL = 'https://haveyourshop.onrender.com/api';
 // EmailJS Configuration
 // TODO: Replace Template ID and Public Key (user_id) with your own credentials from the EmailJS Dashboard
 const EMAILJS_SERVICE_ID = "service_0ob820t";
-const EMAILJS_TEMPLATE_ID = "template_xxxxxxx"; 
-const EMAILJS_PUBLIC_KEY = "user_xxxxxxxxxxxxxxxxxxxx";
+const EMAILJS_TEMPLATE_ID = "service_0ob820t"; 
+const EMAILJS_PUBLIC_KEY = "Xyejwih0bITYi_wJE";
 
 // Inline Custom WhatsApp Icon Component (standard SVG geometry)
 const WhatsAppIcon = ({ size = 18, style = {} }) => (
