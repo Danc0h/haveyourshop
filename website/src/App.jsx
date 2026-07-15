@@ -71,6 +71,8 @@ function App() {
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const [isTestimonialPaused, setIsTestimonialPaused] = useState(false);
   const [selectedPricingTier, setSelectedPricingTier] = useState('monthly'); // 'monthly', 'yearly', 'onetime'
 
   // Admin Custom Scraper Command States
@@ -214,7 +216,7 @@ function App() {
   const templatesData = [
     {
       key: 'business_website',
-      title: 'Premium Business Website',
+      title: 'Custom Business Website',
       description: 'A fully custom corporate presence designed to showcase services, build inbound authority, integrate lead capture, and establish brand confidence.',
       duration: '5 Days Launch',
       color: 'rgba(6, 182, 212, 0.15)',
@@ -229,7 +231,7 @@ function App() {
     },
     {
       key: 'ecommerce_platform',
-      title: 'SupaCart E-Commerce Platform',
+      title: 'E-Commerce Platform',
       description: 'High-speed storefront with custom shopping cart drawers, catalog filtering, mobile-friendly checkouts, and payment gateway integrations.',
       duration: '6 Days Launch',
       color: 'rgba(139, 92, 246, 0.15)',
@@ -244,7 +246,7 @@ function App() {
     },
     {
       key: 'restaurant_platform',
-      title: 'Restaurant Ordering Platform',
+      title: 'Hotel & Restaurant System',
       description: 'Interactive digital menus, table reservation modules, real-time kitchen order tracking, and mobile payments for seamless dining experiences.',
       duration: '5 Days Launch',
       color: 'rgba(234, 179, 8, 0.15)',
@@ -289,7 +291,7 @@ function App() {
     },
     {
       key: 'real_estate_hotel',
-      title: 'Real Estate & Hotel Booking',
+      title: 'Real Estate & Rental System',
       description: 'Advanced catalog layouts featuring interactive maps, property filtering, booking reservation flows, and client review dashboards.',
       duration: '7 Days Launch',
       color: 'rgba(239, 68, 68, 0.15)',
@@ -312,6 +314,60 @@ function App() {
     }, 5000);
     return () => clearInterval(interval);
   }, [currentPage, templatesData.length, isCarouselPaused]);
+
+  const testimonialsData = [
+    {
+      name: 'Sarah Thompson',
+      role: 'Founder, Bloom Cafe & Bakery',
+      text: "Have Your Business Online built our digital reservation system. Table bookings increased by 40% in our first month.",
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80'
+    },
+    {
+      name: 'David Miller',
+      role: 'Director, Miller Property Group',
+      text: "The real estate booking template is flawless. Integrating it was fast, and our agents now close bookings completely online.",
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80'
+    },
+    {
+      name: 'Dr. Evelyn Chen',
+      role: 'Chief Medical Officer, Chen Family Clinic',
+      text: "We needed a secure patient roster and AI clinic assistant. Their custom system transformed our daily patient intake.",
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=120&h=120&q=80'
+    },
+    {
+      name: 'Marcus Brody',
+      role: 'Operations Lead, Fleet Logistics Services',
+      text: "Their custom API scripts synchronized our spreadsheets and warehouse database effortlessly. Manual errors dropped to zero.",
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&h=120&q=80'
+    },
+    {
+      name: 'Amina Diallo',
+      role: 'Founder, SupaCart Retail Hub',
+      text: "Transitioning from slow generic builders to their custom React storefront was the best decision. Our conversion rate doubled.",
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80'
+    },
+    {
+      name: 'Carlos Ortega',
+      role: 'General Manager, Ortega Suites & Hotels',
+      text: "The channel sync integration keeps our Airbnb and Booking.com rosters aligned without double-bookings. Truly outstanding work.",
+      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=120&h=120&q=80'
+    },
+    {
+      name: 'Jessica Vance',
+      role: 'Consulting Partner, Vance Advisory',
+      text: "The calendar reservation flow is so simple. Our clients schedule calls directly, and we get paid deposits instantly.",
+      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=120&h=120&q=80'
+    }
+  ];
+
+  // Auto-advancing testimonials carousel
+  useEffect(() => {
+    if (currentPage !== 'home' || isTestimonialPaused) return;
+    const interval = setInterval(() => {
+      setTestimonialIndex(prev => (prev === testimonialsData.length - 1 ? 0 : prev + 1));
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [currentPage, testimonialsData.length, isTestimonialPaused]);
 
   const renderPrice = (key, tier) => {
     const conf = pricingConfigs.find(c => c.template_key === key);
@@ -543,6 +599,17 @@ function App() {
     setCurrentPage(page);
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleScrollToTemplates = () => {
+    setCurrentPage('home');
+    setIsMobileMenuOpen(false);
+    setTimeout(() => {
+      const el = document.getElementById('templates-showcase');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 50);
   };
 
   const handleFormSubmit = async (e) => {
@@ -1387,9 +1454,12 @@ function App() {
               <p className="hero-subtitle">
                 Helping businesses transition from manual workflows to scalable custom software. High-performance software engineering tailored for digital growth.
               </p>
-              <div className="hero-buttons">
+              <div className="hero-buttons" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button onClick={() => handleNavClick('contact')} className="btn btn-primary">
-                  Start Your Project <ArrowRight size={18} />
+                  Start Your Online Business Presence <ArrowRight size={18} />
+                </button>
+                <button onClick={handleScrollToTemplates} className="btn btn-secondary" style={{ border: '1px solid var(--primary)', color: 'var(--primary)' }}>
+                  Browse Free Templates <Sparkles size={16} style={{ marginLeft: '6px' }} />
                 </button>
                 <button onClick={() => handleNavClick('services')} className="btn btn-secondary">
                   Explore Services
@@ -1434,7 +1504,7 @@ function App() {
               </div>
             </section>
 
-            <section className="section container" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '60px' }}>
+            <section id="templates-showcase" className="section container" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '60px' }}>
               <div className="section-header">
                 <span className="badge badge-secondary">Ready Storefronts</span>
                 <h2>Explore  <span className="text-gradient">Free templates</span></h2>
@@ -1555,6 +1625,78 @@ function App() {
                     <button onClick={() => handleNavClick('contact')} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
                       Free Template <ArrowRight size={14} />
                     </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Testimonials Section */}
+            <section className="section container" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '60px', paddingBottom: '60px' }}>
+              <div className="section-header" style={{ marginBottom: '40px' }}>
+                <span className="badge">Client Reviews</span>
+                <h2>What Our <span className="text-gradient">Clients Say</span></h2>
+                <p className="section-subtitle">
+                  We measure our success by the growth, efficiency, and ROI achieved by the businesses we digitize.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
+                <div 
+                  className="glass-card animate-fade-in" 
+                  style={{ 
+                    width: '100%',
+                    maxWidth: '650px',
+                    padding: '40px 32px',
+                    border: '1px solid var(--border-color)',
+                    position: 'relative',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '24px',
+                    borderRadius: '16px',
+                    boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)'
+                  }}
+                  onMouseEnter={() => setIsTestimonialPaused(true)}
+                  onMouseLeave={() => setIsTestimonialPaused(false)}
+                  onTouchStart={() => setIsTestimonialPaused(true)}
+                  onTouchEnd={() => setIsTestimonialPaused(false)}
+                >
+                  <span style={{ position: 'absolute', top: '10px', left: '20px', fontSize: '6rem', color: 'rgba(139, 92, 246, 0.1)', fontFamily: 'serif', userSelect: 'none', lineHeight: 1 }}>“</span>
+                  
+                  <div style={{ position: 'relative', width: '84px', height: '84px', borderRadius: '50%', padding: '3px', background: 'linear-gradient(135deg, var(--primary), var(--secondary))', boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)' }}>
+                    <img 
+                      src={testimonialsData[testimonialIndex].avatar} 
+                      alt={testimonialsData[testimonialIndex].name} 
+                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', background: '#0a0b10' }}
+                    />
+                  </div>
+
+                  <p style={{ fontSize: '1.1rem', fontStyle: 'italic', color: 'var(--text-secondary)', lineHeight: '1.6', margin: 0, position: 'relative', zIndex: 1 }}>
+                    "{testimonialsData[testimonialIndex].text}"
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <strong style={{ color: '#fff', fontSize: '1.05rem' }}>{testimonialsData[testimonialIndex].name}</strong>
+                    <span style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '600' }}>{testimonialsData[testimonialIndex].role}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '8px' }}>
+                    {testimonialsData.map((_, idx) => (
+                      <span
+                        key={idx}
+                        onClick={() => setTestimonialIndex(idx)}
+                        style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: testimonialIndex === idx ? 'var(--primary)' : 'var(--border-color)',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s ease'
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1746,7 +1888,7 @@ function App() {
                   <div className="contact-method-icon"><Phone size={18} /></div>
                   <div>
                     <h4>WhatsApp Business</h4>
-                    <p><a href="https://wa.me/13022039218" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>+1 (302) 203-9218</a></p>
+                    <p><a href="https://wa.me/18155855175?text=Hello%20Have%20Your%20Business%20Online%20team,%20I'm%20interested%20in%20digitizing%20my%20business.%20I'd%20love%20to%20know%20more%20about%20your%20custom%20software%20and%20free%20templates!" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>+1 (815) 585-5175</a></p>
                   </div>
                 </div>
                 <div className="contact-method">
@@ -3384,7 +3526,7 @@ function App() {
                 <Mail size={14} /> info.haveyourbusinessonline@gmail.com
               </p>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Phone size={14} /> <a href="https://wa.me/13022039218" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>+1 (302) 203-9218 (WhatsApp)</a>
+                <Phone size={14} /> <a href="https://wa.me/18155855175?text=Hello%20Have%20Your%20Business%20Online%20team,%20I'm%20interested%20in%20digitizing%20my%20business.%20I'd%20love%20to%20know%20more%20about%20your%20custom%20software%20and%20free%20templates!" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>+1 (815) 585-5175 (WhatsApp)</a>
               </p>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Globe size={14} /> www.haveyourbusiness.online
