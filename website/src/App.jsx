@@ -746,8 +746,8 @@ function App() {
   };
 
   const handleGenerateOutreachDraft = async (lead) => {
+    if (!lead) return;
     setDraftLoading(true);
-    setSelectedLead(lead);
     setOutreachDraft('');
     try {
       const response = await fetch(`${API_URL}/crm/leads/${lead.id}/outreach-draft`, {
@@ -759,8 +759,9 @@ function App() {
         setLoggedOutreachMessage(data.draft);
       }
     } catch (err) {
-      setOutreachDraft(`Subject: Digital Presence Optimization for ${lead.business_name}\n\nHello Team,\n\nI noticed your website lacks booking options and load speeds are low. We can build storefronts.\n- Dancun`);
-      setLoggedOutreachMessage(`Subject: Digital Presence Optimization for ${lead.business_name}\n\nHello Team,\n\nI noticed your website lacks booking options and load speeds are low. We can build storefronts.\n- Dancun`);
+      const fallback = `Subject: Digital Presence Optimization for ${lead.business_name}\n\nHello Team,\n\nI noticed your website lacks booking options and load speeds are low. We can build storefronts.\n- Dancun`;
+      setOutreachDraft(fallback);
+      setLoggedOutreachMessage(fallback);
     } finally {
       setDraftLoading(false);
     }
@@ -2414,10 +2415,11 @@ function App() {
                                     <span className="badge badge-secondary" style={{ margin: 0, padding: '2px 8px', fontSize: '0.75rem' }}>{lead.industry}</span>
                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📍 {lead.location}</span>
                                   </div>
-                                  <p style={{ fontSize: '0.9rem', margin: '4px 0 0 0' }}>
-                                    🌐 {lead.website_url ? <a href={`http://${lead.website_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>{lead.website_url} <ExternalLink size={10} /></a> : <span style={{ color: 'var(--accent)' }}>No website found</span>}
-                                    {lead.email && <span style={{ marginLeft: '16px' }}>✉️ {lead.email}</span>}
-                                    {lead.social_media_url && <span style={{ marginLeft: '16px' }}>📱 <a href={lead.social_media_url.startsWith('http') ? lead.social_media_url : `https://${lead.social_media_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Social Media <ExternalLink size={10} /></a></span>}
+                                  <p style={{ fontSize: '0.9rem', margin: '4px 0 0 0', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+                                    <span>🌐 {lead.website_url ? <a href={lead.website_url.startsWith('http') ? lead.website_url : `http://${lead.website_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>{lead.website_url} <ExternalLink size={10} /></a> : <span style={{ color: 'var(--accent)' }}>No website found</span>}</span>
+                                    {lead.email && <span>✉️ <a href={`mailto:${lead.email}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }}>{lead.email}</a></span>}
+                                    {lead.phone && <span>📞 <a href={`tel:${lead.phone}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }}>{lead.phone}</a></span>}
+                                    {lead.social_media_url && <span>📱 <a href={lead.social_media_url.startsWith('http') ? lead.social_media_url : `https://${lead.social_media_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Social Media <ExternalLink size={10} /></a></span>}
                                   </p>
                                   <div style={{ marginTop: '8px', display: 'flex', gap: '8px', fontSize: '0.8rem' }}>
                                     <span style={{ color: lead.digital_audit?.no_ssl ? 'var(--accent)' : 'var(--text-secondary)' }}>🔒 SSL: {lead.digital_audit?.no_ssl ? 'Missing' : 'Active'}</span>
@@ -2451,8 +2453,8 @@ function App() {
                                     </select>
                                   </div>
 
-                                  <button onClick={() => handleGenerateOutreachDraft(lead)} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
-                                    <Sparkles size={14} color="var(--primary)" /> Draft Outreach
+                                  <button onClick={() => { setSelectedLead(lead); setOutreachDraft(''); setLoggedOutreachMessage(''); }} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Mail size={14} color="var(--primary)" /> Outreach & Contact
                                   </button>
 
                                   <button 
@@ -2489,24 +2491,79 @@ function App() {
                   }}>
                     <div className="glass-card animate-fade-in" style={{ width: '100%', maxWidth: '650px', background: 'var(--bg-secondary)', border: '1px solid var(--primary)', textAlign: 'left' }}>
                       <div className="flex-between" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
-                        <h3 style={{ margin: 0 }}>Personalized Outreach Pitch for {selectedLead.business_name}</h3>
+                        <h3 style={{ margin: 0 }}>Outreach Portal: {selectedLead.business_name}</h3>
                         <button onClick={() => setSelectedLead(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={20} /></button>
+                      </div>
+
+                      {/* Display Contact details prominently */}
+                      <div className="glass-card" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Address:</span>
+                          <div style={{ fontSize: '0.95rem', fontWeight: '600', marginTop: '2px', wordBreak: 'break-all' }}>
+                            {selectedLead.email ? <a href={`mailto:${selectedLead.email}`} style={{ color: '#fff', textDecoration: 'none' }}>{selectedLead.email}</a> : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No email found</span>}
+                          </div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Phone Number:</span>
+                          <div style={{ fontSize: '0.95rem', fontWeight: '600', marginTop: '2px' }}>
+                            {selectedLead.phone ? <a href={`tel:${selectedLead.phone}`} style={{ color: '#fff', textDecoration: 'none' }}>{selectedLead.phone}</a> : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No phone number</span>}
+                          </div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Website URL:</span>
+                          <div style={{ fontSize: '0.95rem', fontWeight: '600', marginTop: '2px', wordBreak: 'break-all' }}>
+                            {selectedLead.website_url ? <a href={selectedLead.website_url.startsWith('http') ? selectedLead.website_url : `http://${selectedLead.website_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)' }}>{selectedLead.website_url} <ExternalLink size={10} /></a> : <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>No website found</span>}
+                          </div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Social Media:</span>
+                          <div style={{ fontSize: '0.95rem', fontWeight: '600', marginTop: '2px', wordBreak: 'break-all' }}>
+                            {selectedLead.social_media_url ? <a href={selectedLead.social_media_url.startsWith('http') ? selectedLead.social_media_url : `https://${selectedLead.social_media_url}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Social Profile <ExternalLink size={10} /></a> : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No profile linked</span>}
+                          </div>
+                        </div>
                       </div>
 
                       {draftLoading ? (
                         <div style={{ textAlign: 'center', padding: '40px' }}><RefreshCw size={24} className="animate-spin" /> Tailoring with Gemini AI...</div>
+                      ) : !outreachDraft ? (
+                        <div style={{ textAlign: 'center', padding: '24px', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'rgba(255,255,255,0.01)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            No outreach message drafted for this client yet. Use Gemini to write a customized pitch or type your own below.
+                          </p>
+                          <button onClick={() => handleGenerateOutreachDraft(selectedLead)} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Sparkles size={16} /> Draft AI Pitch with Gemini
+                          </button>
+                        </div>
                       ) : (
                         <div>
                           <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                            The Gemini AI engine has analyzed this lead's digital presence (SSL missing, booking missing, low pagespeed) to tailor this pitch:
+                            The Gemini AI engine has analyzed this lead's digital presence to tailor this pitch:
                           </p>
                           <textarea 
                             value={loggedOutreachMessage} 
                             onChange={(e) => setLoggedOutreachMessage(e.target.value)} 
                             className="form-textarea" 
-                            style={{ height: '220px', fontFamily: 'monospace', fontSize: '0.9rem' }}
+                            style={{ height: '180px', fontFamily: 'monospace', fontSize: '0.9rem' }}
                           />
-                          <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }} className="flex-between">
+                        </div>
+                      )}
+
+                      {!draftLoading && (
+                        <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                          {!outreachDraft && (
+                            <div style={{ marginBottom: '12px' }}>
+                              <label className="form-label">Write Custom Message / Notes</label>
+                              <textarea 
+                                value={loggedOutreachMessage} 
+                                onChange={(e) => setLoggedOutreachMessage(e.target.value)} 
+                                className="form-textarea" 
+                                style={{ height: '100px', fontSize: '0.9rem' }}
+                                placeholder="Type your manual email pitch, WhatsApp query, or phone notes here..."
+                              />
+                            </div>
+                          )}
+                          
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }} className="flex-between">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Channel:</span>
                               <select 
@@ -2518,13 +2575,16 @@ function App() {
                                 <option value="Email">Email</option>
                                 <option value="LinkedIn">LinkedIn</option>
                                 <option value="WhatsApp">WhatsApp</option>
+                                <option value="Call">Phone Call</option>
                                 <option value="Contact Form">Contact Form</option>
                               </select>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => { navigator.clipboard.writeText(loggedOutreachMessage); alert('Copied text!'); }} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                                Copy Copy
-                              </button>
+                              {outreachDraft && (
+                                <button onClick={() => { navigator.clipboard.writeText(loggedOutreachMessage); alert('Copied text!'); }} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                                  Copy Text
+                                </button>
+                              )}
                               <button onClick={handleLogOutreach} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
                                 Log Outreach Sent
                               </button>

@@ -64,7 +64,7 @@ Key Projects & Experience:
 1. System Architect and Mobile Developer for TerraQuant (Current Work):
    * Designed and built the systems architecture and mobile application for the TerraQuant AI climate intelligence platform. Orchestrated satellite imagery and earth observation data feeds, environmental data processing pipelines, and machine learning model integrations to quantify environmental value and carbon potential.
 2. Freelance Web Developer (Jan 2026 - Present):
-   * Developed "E-Commerce King" (https://ecommerceking.shop), a full-stack e-commerce platform with product management, PayPal, Mpesa, and VISA card integration, plus order tracking.
+   * Developed "E-Commerce King" (https://ecommerceking.shop), a full-stack e-commerce platform with product management, PayPal, VISA card integration and locally available payments plus order tracking.
    * Built with Node/Express backend, MongoDB, and React Redux frontend.
 3. Mobile App Developer (Nov 2025 - Dec 2025):
    * Built "AI Smart Study", an AI-powered app that helps students study smarter.
