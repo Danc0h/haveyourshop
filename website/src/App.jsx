@@ -3022,7 +3022,10 @@ function App() {
                         <div className="flex-between" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                           <div>
                             <span style={{ fontWeight: '700', fontSize: '1.1rem', marginRight: '12px' }}>
-                              {run.pipeline_type === 'job_scraper' ? '💼 Job Scraper Pipeline' : run.pipeline_type === 'client_outreach' ? '✉️ Client Outreach Pipeline' : '🎓 Scholarship Scraper Pipeline'}
+                              {run.pipeline_type === 'job_scraper' ? '💼 Job Scraper Pipeline' : 
+                               run.pipeline_type === 'client_outreach' ? '✉️ Client Outreach Pipeline' : 
+                               run.pipeline_type === 'manual_lead_import' ? '📥 Manual Lead Import Pipeline' : 
+                               '🎓 Scholarship Scraper Pipeline'}
                             </span>
                             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                               Ran on: {new Date(run.run_time).toLocaleString()}

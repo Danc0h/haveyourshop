@@ -17,7 +17,8 @@ const PORT = process.env.PORT || 5000;
 
 // Enable CORS for frontend Vite application
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Initialize Database schema on startup
 initDb();
@@ -350,6 +351,11 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
     return res.status(400).json({ error: 'fileContent, niche, and city are required.' });
   }
 
+  const logLines = [
+    `[${new Date().toISOString()}] 📥 Started manual lead import from HTML/MHT search file.`,
+    `[${new Date().toISOString()}] Category Niche: "${niche}" | City Location: "${city}"`
+  ];
+
   try {
     const { parsePastedLeads } = require('./services/gemini');
     const { calculateLeadScore } = require('./services/leadGenerator');
@@ -362,24 +368,40 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
     }
 
     function extractHtmlFromMht(content) {
-      const boundaryMatch = content.match(/boundary="([^"]+)"/);
-      const boundary = boundaryMatch ? boundaryMatch[1] : null;
+      const boundaryMatch = content.match(/boundary=(?:"([^"]+)"|([^\s\r\n;]+))/i);
+      const boundary = boundaryMatch ? (boundaryMatch[1] || boundaryMatch[2]) : null;
       if (boundary) {
+        logLines.push(`[${new Date().toISOString()}] MHT boundary detected: "${boundary}"`);
         const parts = content.split('--' + boundary);
         for (let i = 0; i < parts.length; i++) {
           const part = parts[i];
           if (part.includes('Content-Type: text/html')) {
             const headerEnd = part.indexOf('\r\n\r\n');
             const body = headerEnd !== -1 ? part.substring(headerEnd + 4) : part;
+            
+            const isBase64 = part.includes('Content-Transfer-Encoding: base64');
+            if (isBase64) {
+              logLines.push(`[${new Date().toISOString()}] MHT HTML body encoded in Base64. Decoding content...`);
+              const cleanedBody = body.replace(/[\r\n\s]+/g, ''); // strip whitespace
+              try {
+                return Buffer.from(cleanedBody, 'base64').toString('utf-8');
+              } catch (e) {
+                logLines.push(`[${new Date().toISOString()}] ERROR: Failed to decode base64 body: ${e.message}`);
+                console.error('Failed to decode base64 body from MHT:', e);
+              }
+            }
+            logLines.push(`[${new Date().toISOString()}] MHT HTML body encoded in Quoted-Printable. Decoding content...`);
             return decodeQuotedPrintable(body);
           }
         }
       }
+      logLines.push(`[${new Date().toISOString()}] No MHT boundary found. Treating file as standard HTML.`);
       return content;
     }
 
     console.log(`📋 [AI File Importer] Decoding file for ${niche} in ${city}...`);
     const cleanHtml = extractHtmlFromMht(fileContent);
+    logLines.push(`[${new Date().toISOString()}] Clean HTML decoded size: ${cleanHtml.length} characters.`);
 
     // Strip script, style, svg to minimize tokens
     const miniHtml = cleanHtml
@@ -389,14 +411,26 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
       .replace(/<link[\s\S]*?>/gi, '')
       .substring(0, 500000); // safety cap to support ~20-30 listings comfortably
 
+    logLines.push(`[${new Date().toISOString()}] Stripped scripts/styles. Cap-size: ${miniHtml.length} characters. Forwarding to Gemini AI...`);
     console.log(`📋 [AI File Importer] Parsed clean HTML size: ${miniHtml.length} characters. Forwarding to Gemini...`);
-    const parsedLeads = await parsePastedLeads(miniHtml, niche, city);
-    console.log(`📋 [AI File Importer] Extracted ${parsedLeads.length} listings from file.`);
+    
+    let parsedLeads = [];
+    try {
+      parsedLeads = await parsePastedLeads(miniHtml, niche, city);
+      logLines.push(`[${new Date().toISOString()}] Gemini successfully parsed MHT. Extracted ${parsedLeads.length} candidate profiles.`);
+    } catch (geminiErr) {
+      logLines.push(`[${new Date().toISOString()}] ERROR: Gemini parsing failed: ${geminiErr.message}`);
+      throw geminiErr;
+    }
 
+    console.log(`📋 [AI File Importer] Extracted ${parsedLeads.length} listings from file.`);
     const ingestedLeads = [];
 
     for (const lead of parsedLeads) {
-      if (!lead.business_name) continue;
+      if (!lead.business_name) {
+        logLines.push(`[${new Date().toISOString()}] Skipping empty listing: no business name.`);
+        continue;
+      }
 
       let exists = false;
       try {
@@ -411,7 +445,10 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
         exists = false;
       }
 
-      if (exists) continue;
+      if (exists) {
+        logLines.push(`[${new Date().toISOString()}] Listing skipped (already exists in CRM): "${lead.business_name}"`);
+        continue;
+      }
 
       // Conduct audit
       let auditData = {
@@ -428,6 +465,7 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
                          !lead.website_url.toLowerCase().includes('yellowpages.com');
 
       if (hasWebsite) {
+        logLines.push(`[${new Date().toISOString()}] Auditing website URL: ${lead.website_url} for "${lead.business_name}"...`);
         try {
           const cleanUrl = lead.website_url.startsWith('http') ? lead.website_url : `http://${lead.website_url}`;
           const startTime = Date.now();
@@ -452,11 +490,15 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
           if (['wp-content', 'wp-includes', 'joomla', 'drupal', 'generator'].some(kw => lowerHtml.includes(kw))) {
             auditData.outdated_tech = true;
           }
+          logLines.push(`[${new Date().toISOString()}] Website Audit Success. Speed: ${auditData.pagespeed_score}/100 | SSL: ${!auditData.no_ssl} | Roster/Booking: ${!auditData.no_booking}`);
         } catch (auditErr) {
+          logLines.push(`[${new Date().toISOString()}] Website Audit Warning: Failed to crawl ${lead.website_url}: ${auditErr.message}`);
           console.warn(`[Audit] Failed to audit website ${lead.website_url}:`, auditErr.message);
           auditData.outdated_tech = true;
           auditData.pagespeed_score = 25;
         }
+      } else {
+        logLines.push(`[${new Date().toISOString()}] Audit: "${lead.business_name}" has no official website URL.`);
       }
 
       const score = calculateLeadScore(auditData);
@@ -483,14 +525,42 @@ app.post('/api/crm/leads/import-file', async (req, res) => {
         const resObj = await db.query(queryText, params);
         if (resObj.rows && resObj.rows.length > 0) {
           ingestedLeads.push(resObj.rows[0]);
+          logLines.push(`[${new Date().toISOString()}] DB INSERTED: "${lead.business_name}" | Score: ${score}/100 | Status: New`);
         }
       } catch (dbErr) {
+        logLines.push(`[${new Date().toISOString()}] DB ERROR: Failed to insert "${lead.business_name}": ${dbErr.message}`);
         console.error(`❌ DB error saving MHT parsed lead ${lead.business_name}:`, dbErr.message);
       }
     }
 
+    logLines.push(`[${new Date().toISOString()}] Manual Import pipeline finished. Ingested ${ingestedLeads.length} leads.`);
+    
+    // Save execution summary to cron_runs
+    const runStatus = ingestedLeads.length > 0 ? 'Success' : 'Warning';
+    const tasksExecuted = `Manual MHT upload: Imported ${ingestedLeads.length} leads for "${niche}" in ${city}`;
+    try {
+      await db.query(`
+        INSERT INTO cron_runs (run_time, pipeline_type, status, tasks_executed, log_output)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [new Date(), 'manual_lead_import', runStatus, tasksExecuted, logLines.join('\n')]);
+    } catch (logDbErr) {
+      console.error('Failed to save manual import log into DB:', logDbErr.message);
+    }
+
     res.json({ success: true, count: ingestedLeads.length, leads: ingestedLeads });
   } catch (err) {
+    logLines.push(`[${new Date().toISOString()}] FATAL CRASH: ${err.message}`);
+    
+    // Save crash summary to cron_runs
+    try {
+      await db.query(`
+        INSERT INTO cron_runs (run_time, pipeline_type, status, tasks_executed, log_output)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [new Date(), 'manual_lead_import', 'Failure', `Manual MHT upload crashed: ${err.message}`, logLines.join('\n')]);
+    } catch (logDbErr) {
+      console.error('Failed to save manual import crash log into DB:', logDbErr.message);
+    }
+
     res.status(500).json({ error: err.message });
   }
 });
