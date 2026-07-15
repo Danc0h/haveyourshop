@@ -35,9 +35,9 @@ const API_URL = 'https://haveyourshop.onrender.com/api';
 
 // EmailJS Configuration
 // TODO: Replace Template ID and Public Key (user_id) with your own credentials from the EmailJS Dashboard
-const EMAILJS_SERVICE_ID = "service_0ob820t";
-const EMAILJS_TEMPLATE_ID = "service_0ob820t"; 
-const EMAILJS_PUBLIC_KEY = "Xyejwih0bITYi_wJE";
+const EMAILJS_SERVICE_ID = "service_c7nm3wc";
+const EMAILJS_TEMPLATE_ID = "template_xbuyhk5"; 
+const EMAILJS_PUBLIC_KEY = "R1rxB8wKcGCA8LJNR";
 
 // Inline Custom WhatsApp Icon Component (standard SVG geometry)
 const WhatsAppIcon = ({ size = 18, style = {} }) => (
@@ -338,7 +338,7 @@ function App() {
   const testimonialsData = [
     {
       name: 'Sarah Thompson',
-      role: 'Founder, Bloom Cafe & Bakery',
+      role: 'Founder, Bloom Hotel & cafe',
       text: "Have Your Business Online built our digital reservation system. Table bookings increased by 40% in our first month.",
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80'
     },
@@ -1439,7 +1439,7 @@ function App() {
             <div className="logo-icon flex-center">
               <Globe size={16} color="#fff" />
             </div>
-            <span className="footer-logo text-gradient" style={{ fontWeight: '800' }}>Have Your Business Online</span>
+            <span className="footer-logo text-gradient" style={{ fontWeight: '800' }}>Have Your Business Online™</span>
           </div>
 
           {/* Desktop Navigation Links */}
@@ -1511,7 +1511,7 @@ function App() {
               <p className="hero-subtitle">
                 Helping businesses transition from manual workflows to scalable custom software. High-performance software engineering tailored for digital growth.
               </p>
-              <div className="hero-buttons" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div className="hero-buttons">
                 <button onClick={() => handleNavClick('contact')} className="btn btn-primary">
                   Start Your Online Business Presence <ArrowRight size={18} />
                 </button>
@@ -3564,7 +3564,7 @@ function App() {
                 <div className="logo-icon flex-center">
                   <Globe size={16} color="#fff" />
                 </div>
-                <span className="footer-logo text-gradient">Have Your Business Online</span>
+                <span className="footer-logo text-gradient">Have Your Business Online™</span>
               </div>
               <p style={{ fontSize: '0.9rem' }}>
                 Premium custom web portals, native mobile applications, and workflow AI automation services designed to bring your business online and grow operational efficiency.
@@ -3609,11 +3609,11 @@ function App() {
             fontSize: '0.85rem',
             color: 'var(--text-muted)'
           }}>
-            <span>© {new Date().getFullYear()} Have Your Business Online. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} Have Your Business Online™. All rights reserved.</span>
             <div style={{ display: 'flex', gap: '20px' }}>
-              <span>B.Sc Software Engineering Powered</span>
+               <span>Arkansas, USA</span>
+              <span>Run by the Software Engineering team in the world</span>
               <span>•</span>
-              <a href="https://dancunsoftwares.online" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Portfolio Website</a>
             </div>
           </div>
         </div>
