@@ -33,6 +33,25 @@ import './App.css';
 // API Configuration
 const API_URL = 'https://haveyourshop.onrender.com/api';
 
+// EmailJS Configuration
+// TODO: Replace Template ID and Public Key (user_id) with your own credentials from the EmailJS Dashboard
+const EMAILJS_SERVICE_ID = "service_0ob820t";
+const EMAILJS_TEMPLATE_ID = "template_xxxxxxx"; 
+const EMAILJS_PUBLIC_KEY = "user_xxxxxxxxxxxxxxxxxxxx";
+
+// Inline Custom WhatsApp Icon Component (standard SVG geometry)
+const WhatsAppIcon = ({ size = 18, style = {} }) => (
+  <svg 
+    viewBox="0 0 24 24" 
+    width={size} 
+    height={size} 
+    fill="currentColor"
+    style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}
+  >
+    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.968C16.64 1.97 14.168.949 11.54.949c-5.43 0-9.855 4.37-9.859 9.8.002 2.1.547 4.142 1.593 5.95l-.997 3.646 3.77-.989zm13.114-6.388c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.569-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+  </svg>
+);
+
 const groupItemsByDate = (items) => {
   const groups = {};
   if (!items || !Array.isArray(items)) return groups;
@@ -163,6 +182,7 @@ function App() {
     message: ''
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [formSending, setFormSending] = useState(false);
   // Resolve client IP and fetch custom pricing configs
   const fetchPricingConfigs = async () => {
     try {
@@ -614,20 +634,57 @@ function App() {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    if (formSending) return;
+    setFormSending(true);
+
     try {
-      const response = await fetch(`${API_URL}/website/contact`, {
+      // 1. Submit to local backend database (CRM)
+      const crmPromise = fetch(`${API_URL}/website/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
-      });
-      if (response.ok) {
-        setFormSubmitted(true);
+      }).catch(err => console.warn('CRM logging failed', err));
+
+      // 2. Submit to EmailJS REST API
+      let emailjsPromise = Promise.resolve();
+      
+      if (EMAILJS_TEMPLATE_ID && !EMAILJS_TEMPLATE_ID.includes('xxxx') && EMAILJS_PUBLIC_KEY && !EMAILJS_PUBLIC_KEY.includes('xxxx')) {
+        emailjsPromise = fetch('https://api.emailjs.com/api/v1.0/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            service_id: EMAILJS_SERVICE_ID,
+            template_id: EMAILJS_TEMPLATE_ID,
+            user_id: EMAILJS_PUBLIC_KEY,
+            template_params: {
+              from_name: formData.name,
+              from_email: formData.email,
+              company: formData.company || 'Not Specified',
+              service: formData.service,
+              message: formData.message || 'No additional details provided.'
+            }
+          })
+        }).then(async res => {
+          if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(txt);
+          }
+        }).catch(err => {
+          console.error('EmailJS sending failed:', err);
+          alert(`Could not send email directly: ${err.message}. However, your request has been logged in our system!`);
+        });
       } else {
-        setFormSubmitted(true);
+        console.info('EmailJS template/public key not configured. Logging request locally only.');
       }
-    } catch (err) {
-      console.warn('⚠️ Network failed, simulating contact form submission.');
+
+      await Promise.all([crmPromise, emailjsPromise]);
       setFormSubmitted(true);
+      alert("Success! Your consultation/audit request has been received. Our team will review it and get back to you shortly!");
+    } catch (err) {
+      console.error('Contact submission failed:', err);
+      setFormSubmitted(true);
+    } finally {
+      setFormSending(false);
     }
   };
 
@@ -1885,7 +1942,7 @@ function App() {
                   </div>
                 </div>
                 <div className="contact-method">
-                  <div className="contact-method-icon"><Phone size={18} /></div>
+                  <div className="contact-method-icon"><WhatsAppIcon size={18} /></div>
                   <div>
                     <h4>WhatsApp Business</h4>
                     <p><a href="https://wa.me/18155855175?text=Hello%20Have%20Your%20Business%20Online%20team,%20I'm%20interested%20in%20digitizing%20my%20business.%20I'd%20love%20to%20know%20more%20about%20your%20custom%20software%20and%20free%20templates!" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>+1 (815) 585-5175</a></p>
@@ -1938,7 +1995,22 @@ function App() {
                         placeholder="Tell us more about your business needs or the features you want..."
                       />
                     </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Submit Request</button>
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary" 
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      disabled={formSending}
+                    >
+                      {formSending ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin" /> Sending Inquiry...
+                        </>
+                      ) : (
+                        <>
+                          Submit Request <Send size={16} />
+                        </>
+                      )}
+                    </button>
                   </form>
                 )}
               </div>
@@ -3526,7 +3598,7 @@ function App() {
                 <Mail size={14} /> info.haveyourbusinessonline@gmail.com
               </p>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Phone size={14} /> <a href="https://wa.me/18155855175?text=Hello%20Have%20Your%20Business%20Online%20team,%20I'm%20interested%20in%20digitizing%20my%20business.%20I'd%20love%20to%20know%20more%20about%20your%20custom%20software%20and%20free%20templates!" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>+1 (815) 585-5175 (WhatsApp)</a>
+                <WhatsAppIcon size={14} /> <a href="https://wa.me/18155855175?text=Hello%20Have%20Your%20Business%20Online%20team,%20I'm%20interested%20in%20digitizing%20my%20business.%20I'd%20love%20to%20know%20more%20about%20your%20custom%20software%20and%20free%20templates!" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>+1 (815) 585-5175 (WhatsApp)</a>
               </p>
               <p style={{ fontSize: '0.9rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Globe size={14} /> www.haveyourbusiness.online
