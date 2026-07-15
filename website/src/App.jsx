@@ -1820,78 +1820,68 @@ function App() {
               <h1>Tailored Implementation Tiers</h1>
               <p className="section-subtitle">No hidden fees. We host on free-tier friendly serverless environments.</p>
             </div>
-            <div className="grid-cols-3">
-              <div className="glass-card pricing-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                <span className="badge badge-secondary" style={{ alignSelf: 'flex-start', marginBottom: '12px' }}>SME Starter</span>
-                <h3>Business Website</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Custom landing page or marketing site to establish local brand authority.</p>
-                
-                <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>Was $2,499 setup / $149 mo</div>
-                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff', marginTop: '4px' }}>
-                    $1,499 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>one-time setup</span>
-                  </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--secondary)', marginTop: '4px' }}>
-                    or $99 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>/ month sub</span>
-                  </div>
-                </div>
-
-                <ul className="pricing-features" style={{ flexGrow: 1, listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Custom React Landing Page</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Booking Form Integration</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> SEO & Managed Free Hosting</li>
-                </ul>
-                <button onClick={() => handleNavClick('contact')} className="btn btn-secondary" style={{ width: '100%' }}>Get Started</button>
+            {/* Billing Tier Selector */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
+              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px', border: '1px solid var(--border-color)', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {['monthly', 'six_months', 'yearly', 'onetime'].map(tier => (
+                  <button
+                    key={tier}
+                    onClick={() => setSelectedPricingTier(tier)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: selectedPricingTier === tier ? 'var(--primary)' : 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {tier === 'onetime' ? 'One-time Payment' : tier === 'six_months' ? '6-Month Plan' : `${tier.replace('_', ' ')} billing`}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="glass-card pricing-card popular" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', border: '2px solid var(--primary)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span className="badge" style={{ margin: 0, background: 'rgba(139, 92, 246, 0.2)', color: 'var(--primary)' }}>Most Popular</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: '700' }}>RECOMMENDED</span>
+            <div className="grid-cols-3" style={{ gap: '30px' }}>
+              {templatesData.map(tmpl => (
+                <div key={tmpl.key} className="glass-card pricing-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minHeight: '480px', border: '1px solid var(--border-color)' }}>
+                  <span className="badge badge-secondary" style={{ alignSelf: 'flex-start', marginBottom: '12px', background: tmpl.color, color: tmpl.badgeColor }}>
+                    {tmpl.duration}
+                  </span>
+                  <h3>{tmpl.title}</h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px', minHeight: '60px' }}>
+                    {tmpl.description}
+                  </p>
+                  
+                  <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through', fontWeight: '500' }}>
+                        Was {renderOriginalPrice(tmpl.key, selectedPricingTier)}
+                      </span>
+                      <span style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--secondary)' }}>
+                        Now {renderPrice(tmpl.key, selectedPricingTier)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {selectedPricingTier === 'monthly' ? 'per month' : selectedPricingTier === 'six_months' ? 'for 6 months' : selectedPricingTier === 'yearly' ? 'billed annually' : 'one-time purchase'}
+                    </div>
+                  </div>
+
+                  <ul className="pricing-features" style={{ flexGrow: 1, listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {tmpl.features.map(f => (
+                      <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        <CheckCircle2 size={16} color="var(--secondary)" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button onClick={() => { handleNavClick('contact'); setFormData(prev => ({ ...prev, service: tmpl.key })); }} className="btn btn-primary" style={{ width: '100%', marginTop: 'auto' }}>
+                    Select Template
+                  </button>
                 </div>
-                <h3>Growth E-Commerce</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Complete custom shopping storefronts built to scale retail revenue.</p>
-                
-                <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>Was $4,999 setup / $299 mo</div>
-                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff', marginTop: '4px' }}>
-                    $3,499 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>one-time setup</span>
-                  </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--primary)', marginTop: '4px' }}>
-                    or $199 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>/ month sub</span>
-                  </div>
-                </div>
-
-                <ul className="pricing-features" style={{ flexGrow: 1, listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--primary)" /> Custom SupaCart Storefront</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--primary)" /> Stripe / PayPal / M-Pesa</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--primary)" /> Configurable Admin Dashboard</li>
-                </ul>
-                <button onClick={() => handleNavClick('contact')} className="btn btn-primary" style={{ width: '100%' }}>Launch Shop</button>
-              </div>
-
-              <div className="glass-card pricing-card" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                <span className="badge badge-secondary" style={{ alignSelf: 'flex-start', marginBottom: '12px' }}>Enterprise Suite</span>
-                <h3>Enterprise POS & Systems</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Full Point of Sale systems and automated mobile/web applications.</p>
-                
-                <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>Was $8,499 setup / $499 mo</div>
-                  <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff', marginTop: '4px' }}>
-                    $5,999 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>one-time setup</span>
-                  </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--secondary)', marginTop: '4px' }}>
-                    or $349 <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>/ month sub</span>
-                  </div>
-                </div>
-
-                <ul className="pricing-features" style={{ flexGrow: 1, listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Custom Cloud/Offline POS System</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> React Native Mobile App</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><CheckCircle2 size={16} color="var(--secondary)" /> Custom Workflow AI Automation</li>
-                </ul>
-                <button onClick={() => handleNavClick('contact')} className="btn btn-secondary" style={{ width: '100%' }}>Book Call</button>
-              </div>
+              ))}
             </div>
           </div>
         )}
